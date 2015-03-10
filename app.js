@@ -346,10 +346,21 @@ app.loadDashStream = function() {
 
   var mediaUrl = document.getElementById('manifestUrlInput').value;
 
-  app.load_(
-      new shaka.player.DashVideoSource(
-          mediaUrl,
-          app.interpretContentProtection_));
+  var dashVideoSource = new shaka.player.DashVideoSourceExternalSubtitles(
+      mediaUrl,
+      app.interpretContentProtection_);
+
+  var subtitleList = document.getElementById('subtitles');
+
+  for (var i = 0; i < subtitleList.options.length; i++) {
+    var option = subtitleList.options[i];
+    
+    dashVideoSource.addSubtitle(
+      option.text,
+      option.value);
+  }
+
+  app.load_(dashVideoSource, app.interpretContentProtection_);
 };
 
 
@@ -681,3 +692,41 @@ if (document.readyState == 'complete' ||
 } else {
   document.addEventListener('DOMContentLoaded', app.init);
 }
+
+/**
+ * Append a new subtitle typed by the user
+ */
+app.addSubtitle = function() {
+  var languageEle = document.getElementById('newSubtitleLang');
+  var uriEle = document.getElementById('newSubtitleUrl');
+  
+  var language = languageEle.value;
+  var uri = uriEle.value;
+
+  if (!language || !uri) {
+    alert('Please inform the language and the subtitle Uri.');
+    return;
+  }
+
+  var subtitleList = document.getElementById('subtitles');
+ 
+  var newOption = document.createElement('option');
+  newOption.text = language;
+  newOption.value = uri;
+
+  subtitleList.add(newOption);
+  
+  languageEle.value = '';
+  uriEle.value = '';
+};
+
+
+app.removeSubtitle = function(subtitleList) {
+  if (subtitleList.selectedIndex == -1) {
+    return;
+  }
+
+  var selectedElement = subtitleList.options[subtitleList.selectedIndex];
+
+  subtitleList.removeChild(selectedElement);
+};

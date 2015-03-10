@@ -106,7 +106,36 @@
           <input id="wvLicenseServerUrlInput" type="text" style="width: 98%;"></input>
         </td>
       </tr>
-
+      <tr class="dash">
+        <td>External Subtitles: [?]</td>
+        <td>
+          <table>
+            <thead>
+              <tr>
+                <th>Lang</th>
+                <th>Url</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tr>
+              <td>
+                <input id="newSubtitleLang" type="text"></input>
+              </td>
+              <td>
+                <input id="newSubtitleUrl" type="text"></input>
+              </td>
+              <td>
+                <button onclick="app.addSubtitle();">Add Subtitle</button>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="3">
+                <select id='subtitles' multiple style="width: 100%" ondblclick="app.removeSubtitle(this);"></select>
+              </td> 
+            </tr>
+          </table>
+        </td>
+      </tr>
       <!-- Common rows -->
       <tr>
         <td colspan="2">
@@ -157,10 +186,11 @@
     <br>
 
     <div>
-      <video id="video" poster="assets/poster.jpg"
+        <video id="video" poster="assets/poster.jpg"
              width="600" height="400"
              crossorigin="anonymous"
-             autoplay controls></video>
+             autoplay controls>             
+        </video>
     </div>
   </body>
 </html>
