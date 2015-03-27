@@ -354,13 +354,11 @@ app.loadDashStream = function() {
 
   for (var i = 0; i < subtitleList.options.length; i++) {
     var option = subtitleList.options[i];
-    
-    dashVideoSource.addSubtitle(
-      option.text,
-      option.value);
+
+    dashVideoSource.addSubtitle(option.text, option.value);
   }
 
-  app.load_(dashVideoSource, app.interpretContentProtection_);
+  app.load_(dashVideoSource);
 };
 
 
@@ -693,13 +691,14 @@ if (document.readyState == 'complete' ||
   document.addEventListener('DOMContentLoaded', app.init);
 }
 
+
 /**
  * Append a new subtitle typed by the user
  */
 app.addSubtitle = function() {
   var languageEle = document.getElementById('newSubtitleLang');
   var uriEle = document.getElementById('newSubtitleUrl');
-  
+
   var language = languageEle.value;
   var uri = uriEle.value;
 
@@ -709,18 +708,23 @@ app.addSubtitle = function() {
   }
 
   var subtitleList = document.getElementById('subtitles');
- 
+
   var newOption = document.createElement('option');
   newOption.text = language;
   newOption.value = uri;
 
   subtitleList.add(newOption);
-  
+
   languageEle.value = '';
   uriEle.value = '';
 };
 
 
+/**
+ * Remove the selected subtitle track.
+ *
+ * @param {HTMLSelectElement} subtitleList HTML Element of subtitle tracks.
+ */
 app.removeSubtitle = function(subtitleList) {
   if (subtitleList.selectedIndex == -1) {
     return;
