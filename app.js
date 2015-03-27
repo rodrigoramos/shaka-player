@@ -120,6 +120,8 @@ app.init = function() {
 
   app.onMpdChange();
 
+  playerControls.init(app.video_);
+
   if ('dash' in params) {
     document.getElementById('streamTypeList').value = 'dash';
     app.onStreamTypeChange();
@@ -390,6 +392,7 @@ app.load_ = function(videoSource) {
 
   app.player_.load(videoSource).then(app.breakOutOfPromise_(
       function() {
+        app.aspectRatioSet_ = false;
         app.displayMetadata_();
       })
   ).catch(function() {});  // Error already handled through error event.
@@ -402,7 +405,6 @@ app.load_ = function(videoSource) {
  */
 app.displayMetadata_ = function() {
   console.assert(app.player_ != null);
-  app.aspectRatioSet_ = false;
 
   // Populate video tracks.
   var videoTracksList = document.getElementById('videoTracks');
@@ -460,16 +462,6 @@ app.displayMetadata_ = function() {
 
 
 /**
- * Requests fullscreen mode.
- */
-app.requestFullscreen = function() {
-  if (app.player_) {
-    app.player_.requestFullscreen();
-  }
-};
-
-
-/**
  * Update video resolution information.
  * @private
  */
@@ -484,11 +476,11 @@ app.updateVideoSize_ = function() {
         aspect = 4 / 3;
       }
 
-      // Resize the video tag to match the aspect ratio of the media.
+      // Resize the video container to match the aspect ratio of the media.
       var h = 576;
       var w = h * aspect;
-      app.video_.width = w.toString();
-      app.video_.height = h.toString();
+      app.video_.parentElement.style.width = w.toString() + 'px';
+      app.video_.parentElement.style.height = h.toString() + 'px';
 
       app.aspectRatioSet_ = true;
     }
@@ -542,8 +534,12 @@ app.initPlayer_ = function() {
 
   app.player_ =
       new shaka.player.Player(/** @type {!HTMLVideoElement} */ (app.video_));
-  app.player_.addEventListener('error', app.onPlayerError_, false);
-  app.player_.addEventListener('adaptation', app.displayMetadata_, false);
+  app.player_.addEventListener('error', app.onPlayerError_);
+  app.player_.addEventListener('adaptation', app.displayMetadata_);
+  app.player_.addEventListener('bufferingStart',
+      playerControls.onBuffering.bind(null, true));
+  app.player_.addEventListener('bufferingEnd',
+      playerControls.onBuffering.bind(null, false));
 
   // Load the adaptation setting.
   app.onAdaptationChange();
@@ -602,6 +598,17 @@ app.interpretContentProtection_ = function(contentProtection) {
         'org.w3.clearkey', false, licenseServerUrl, false, initData, null);
   }
 
+  var initDataOverride = null;
+  if (contentProtection.pssh && contentProtection.pssh.psshBox) {
+    // Override the init data with the PSSH from the manifest.
+    initDataOverride = {
+      initData: contentProtection.pssh.psshBox,
+      initDataType: 'cenc'
+    };
+    console.info('Found overridden PSSH with system IDs:',
+                 contentProtection.pssh.parsedPssh.systemIds);
+  }
+
   if (contentProtection.schemeIdUri == 'http://youtube.com/drm/2012/10/10') {
     // This is another scheme used by YouTube.
     var licenseServerUrl = null;
@@ -613,16 +620,6 @@ app.interpretContentProtection_ = function(contentProtection) {
       }
     }
     if (licenseServerUrl) {
-      var initDataOverride = null;
-      if (contentProtection.pssh && contentProtection.pssh.psshBox) {
-        // Override the init data with the PSSH from the manifest.
-        initDataOverride = {
-          initData: contentProtection.pssh.psshBox,
-          initDataType: 'cenc'
-        };
-        console.info('Found overridden PSSH with system IDs:',
-                     contentProtection.pssh.parsedPssh.systemIds);
-      }
       return new shaka.player.DrmSchemeInfo(
           'com.widevine.alpha', true, licenseServerUrl, false, initDataOverride,
           app.postProcessYouTubeLicenseResponse_);
@@ -634,7 +631,8 @@ app.interpretContentProtection_ = function(contentProtection) {
     // This is the UUID which represents Widevine in the edash-packager.
     var licenseServerUrl = '//widevine-proxy.appspot.com/proxy';
     return new shaka.player.DrmSchemeInfo(
-        'com.widevine.alpha', true, licenseServerUrl, false, null, null);
+        'com.widevine.alpha', true, licenseServerUrl, false, initDataOverride,
+        null);
   }
 
   if (contentProtection.schemeIdUri == 'urn:mpeg:dash:mp4protection:2011') {

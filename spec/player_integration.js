@@ -133,8 +133,7 @@ describe('Player', function() {
         player.play();
         return delay(10.0);
       }).then(function() {
-        var currentResolution = player.getCurrentResolution();
-        expect(currentResolution.height).toEqual(720);
+        expect(video.videoHeight).toEqual(720);
         done();
       }).catch(function(error) {
         fail(error);
@@ -149,15 +148,13 @@ describe('Player', function() {
         player.play();
         return delay(10.0);
       }).then(function() {
-        var currentResolution = player.getCurrentResolution();
-        expect(currentResolution.height).toEqual(720);
+        expect(video.videoHeight).toEqual(720);
 
         var track = getVideoTrackByHeight(360);
         player.selectVideoTrack(track.id);
         return delay(10.0);
       }).then(function() {
-        var currentResolution = player.getCurrentResolution();
-        expect(currentResolution.height).toEqual(360);
+        expect(video.videoHeight).toEqual(360);
         done();
       }).catch(function(error) {
         fail(error);
@@ -185,55 +182,6 @@ describe('Player', function() {
       }).then(function() {
         expect(video.paused).toBe(false);
         expect(video.currentTime).toBeGreaterThan(timestamp);
-        done();
-      }).catch(function(error) {
-        fail(error);
-        done();
-      });
-    });
-  });
-
-  describe('setVolume', function() {
-    it('changes playback volume', function(done) {
-      player.load(newSource(plainManifest)).then(function() {
-        player.setVolume(0);
-        expect(video.volume).toEqual(0);
-
-        player.setVolume(0.5);
-        expect(video.volume).toEqual(0.5);
-        done();
-      }).catch(function(error) {
-        fail(error);
-        done();
-      });
-    });
-  });
-
-  describe('setMuted', function() {
-    it('mutes playback', function(done) {
-      player.load(newSource(plainManifest)).then(function() {
-        player.setMuted(true);
-        expect(video.muted).toBe(true);
-
-        player.setMuted(false);
-        expect(video.muted).toBe(false);
-        done();
-      }).catch(function(error) {
-        fail(error);
-        done();
-      });
-    });
-
-    it('does not change volume', function(done) {
-      player.load(newSource(plainManifest)).then(function() {
-        player.setVolume(1);
-        expect(video.volume).toEqual(1);
-
-        player.setMuted(true);
-        expect(video.volume).toEqual(1);
-
-        player.setMuted(false);
-        expect(video.volume).toEqual(1);
         done();
       }).catch(function(error) {
         fail(error);
@@ -311,28 +259,29 @@ describe('Player', function() {
       var source = newSource(highBitrateManifest);
 
       // Create a temporary shim to intercept and modify manifest info.
-      var originalStreamVideoSource = shaka.player.StreamVideoSource;
-      shaka.player.StreamVideoSource = function(manifestInfo) {
+      var originalLoad = shaka.player.StreamVideoSource.prototype.load;
+      shaka.player.StreamVideoSource.prototype.load = function(
+          preferredLanguage) {
         // This should force Chrome to evict data quickly after it is played.
         // At this asset's bitrate, Chrome should only have enough buffer for
         // 310 seconds of data.  Tweak the buffer time for audio, since this
         // will take much less time and bandwidth to buffer.
         const minBufferTime = 300;
-        var sets = manifestInfo.periodInfos[0].streamSetInfos;
+        var sets = this.manifestInfo.periodInfos[0].streamSetInfos;
         var audioSet = sets[0].contentType == 'audio' ? sets[0] : sets[1];
         expect(audioSet.contentType).toBe('audio');
         audioSet.streamInfos[0].minBufferTime = minBufferTime;
         // Remove the video set to speed things up.
-        manifestInfo.periodInfos[0].streamSetInfos = [audioSet];
-        return new originalStreamVideoSource(manifestInfo);
+        this.manifestInfo.periodInfos[0].streamSetInfos = [audioSet];
+        return originalLoad.call(this, preferredLanguage);
       };
 
       var audioStreamBuffer;
       player.load(source).then(function() {
         // Replace the StreamVideoSource shim.
-        shaka.player.StreamVideoSource = originalStreamVideoSource;
+        shaka.player.StreamVideoSource.prototype.load = originalLoad;
         // Locate the audio stream buffer.
-        var audioStream = source.streamVideoSource_.streamsByType_['audio'];
+        var audioStream = source.streamsByType_['audio'];
         audioStreamBuffer = audioStream.sbm_.sourceBuffer_;
         // Nothing has buffered yet.
         expect(audioStreamBuffer.buffered.length).toBe(0);
@@ -358,7 +307,7 @@ describe('Player', function() {
         done();
       }).catch(function(error) {
         // Replace the StreamVideoSource shim.
-        shaka.player.StreamVideoSource = originalStreamVideoSource;
+        shaka.player.StreamVideoSource.prototype.load = originalLoad;
         fail(error);
         done();
       });
@@ -406,7 +355,7 @@ describe('Player', function() {
         return delay(3.0);
       }).then(function() {
         var Stream = shaka.media.Stream;
-        var videoStream = source.streamVideoSource_.streamsByType_['video'];
+        var videoStream = source.streamsByType_['video'];
         expect(videoStream.state_).toBe(Stream.State_.UPDATING);
 
         var track = getVideoTrackByHeight(480);
