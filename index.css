@@ -47,3 +47,10 @@ tr {
   display: none;
 }
 
+::cue {
+  background-color: transparent;
+  color: #f7fa00;
+  font-size: 120%;
+  text-shadow: 3px 3px 3px #101010;
+  line-height: 125%;
+}
