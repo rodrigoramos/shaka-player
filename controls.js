@@ -21,6 +21,22 @@
 var playerControls = function() {};
 
 
+/** @private {boolean} */
+playerControls.isLive_;
+
+
+/** @private {boolean} */
+playerControls.isSeeking_;
+
+
+/** @private {HTMLVideoElement} */
+playerControls.video_;
+
+
+/** @private {!{start: number, end: number}} */
+playerControls.seekRange_ = {start: 0, end: 0};
+
+
 /**
  * Initializes the player controls.
  * @param {!HTMLVideoElement} video
@@ -33,10 +49,11 @@ playerControls.init = function(video) {
   var muteButton = document.getElementById('muteButton');
   var unmuteButton = document.getElementById('unmuteButton');
   var volumeBar = document.getElementById('volumeBar');
-  var currentTime = document.getElementById('currentTime');
   var fullscreenButton = document.getElementById('fullscreenButton');
 
-  var seeking = false;
+  playerControls.isLive_ = false;
+  playerControls.isSeeking_ = false;
+  playerControls.video_ = video;
 
   // play
   playButton.addEventListener('click', function() {
@@ -53,23 +70,40 @@ playerControls.init = function(video) {
     video.pause();
   });
   video.addEventListener('pause', function() {
-    if (!seeking) {
+    if (!playerControls.isSeeking_) {
       pauseButton.style.display = 'none';
       playButton.style.display = 'block';
     }
   });
 
   // seek
+  var seekTimeoutId = null;
   seekBar.addEventListener('mousedown', function() {
-    seeking = true;
+    playerControls.isSeeking_ = true;
+    video.pause();
   });
   seekBar.addEventListener('input', function() {
-    if (video.duration) {
-      video.currentTime = seekBar.value * video.duration;
+    if (!video.duration) {
+      // Can't seek.  Ignore.
+      return;
     }
+
+    // Update the UI right away.
+    playerControls.updateTimeAndSeekRange_();
+
+    // Collect input events and seek when things have been stable for 100ms.
+    if (seekTimeoutId) {
+      window.clearTimeout(seekTimeoutId);
+      seekTimeoutId = null;
+    }
+    seekTimeoutId = window.setTimeout(function() {
+      seekTimeoutId = null;
+      video.currentTime = seekBar.value;
+    }, 100);
   });
   seekBar.addEventListener('mouseup', function() {
-    seeking = false;
+    video.play();
+    playerControls.isSeeking_ = false;
   });
   // initialize seek bar with 0
   seekBar.value = 0;
@@ -83,13 +117,13 @@ playerControls.init = function(video) {
   });
 
   // volume
-  volumeBar.oninput = function() {
+  volumeBar.addEventListener('input', function() {
     video.volume = volumeBar.value;
     video.muted = false;
-  };
+  });
 
   // volume & mute updates
-  video.addEventListener('volumechange', function() {
+  var onVolumeChange = function() {
     if (video.muted) {
       muteButton.style.display = 'none';
       unmuteButton.style.display = 'block';
@@ -105,45 +139,27 @@ playerControls.init = function(video) {
     gradient.push('#000 100%');
     volumeBar.style.background =
         'linear-gradient(' + gradient.join(',') + ')';
-  });
+  };
+  video.addEventListener('volumechange', onVolumeChange);
+
   // initialize volume display with a fake event
-  video.dispatchEvent(new Event('volumechange'));
+  onVolumeChange();
 
   // current time & seek bar updates
   video.addEventListener('timeupdate', function() {
-    var m = Math.floor(video.currentTime / 60);
-    var s = Math.floor(video.currentTime % 60);
-    if (s < 10) s = '0' + s;
-    currentTime.innerText = m + ':' + s;
-
-    // The fallback to 0 eliminates NaN.
-    seekBar.value = (video.currentTime / video.duration) || 0;
-
-    var gradient = ['to right'];
-    var buffered = video.buffered;
-    if (buffered.length == 0) {
-      gradient.push('#000 0%');
-    } else {
-      var bufferStart = buffered.start(0) / video.duration;
-      var bufferEnd = buffered.end(0) / video.duration;
-      gradient.push('#000 ' + (bufferStart * 100) + '%');
-      gradient.push('#ccc ' + (bufferStart * 100) + '%');
-      gradient.push('#ccc ' + (seekBar.value * 100) + '%');
-      gradient.push('#444 ' + (seekBar.value * 100) + '%');
-      gradient.push('#444 ' + (bufferEnd * 100) + '%');
-      gradient.push('#000 ' + (bufferEnd * 100) + '%');
+    if (!playerControls.isLive_) {
+      playerControls.updateTimeAndSeekRange_();
     }
-    seekBar.style.background = 'linear-gradient(' + gradient.join(',') + ')';
   });
 
   // fullscreen
-  fullscreenButton.onclick = function() {
+  fullscreenButton.addEventListener('click', function() {
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
       videoContainer.requestFullscreen();
     }
-  };
+  });
 
   // fullscreen updates
   var normalSize = {};
@@ -170,6 +186,126 @@ playerControls.init = function(video) {
  */
 playerControls.onBuffering = function(bufferingState) {
   var bufferingSpinner = document.getElementById('bufferingSpinner');
-  bufferingSpinner.style.display = bufferingState ? 'flex' : 'none';
+  bufferingSpinner.style.display = bufferingState ? 'inherit' : 'none';
+};
+
+
+/**
+ * Called by the application when the seek range changes.
+ * @param {Event|{start: number, end: number}} event
+ */
+playerControls.onSeekRangeChanged = function(event) {
+  playerControls.seekRange_.start = event.start;
+  playerControls.seekRange_.end = event.end;
+  playerControls.updateTimeAndSeekRange_();
+};
+
+
+/**
+ * Called by the application to set the live playback state.
+ * @param {boolean} liveState True if the stream is live.
+ */
+playerControls.setLive = function(liveState) {
+  playerControls.isLive_ = liveState;
+};
+
+
+/**
+ * Called when the seek range or current time need to be updated.
+ * @private
+ */
+playerControls.updateTimeAndSeekRange_ = function() {
+  var video = playerControls.video_;
+  var seekRange = playerControls.seekRange_;
+  var currentTime = document.getElementById('currentTime');
+  var seekBar = document.getElementById('seekBar');
+
+  var displayTime = video.currentTime;
+  if (playerControls.isSeeking_) {
+    var seekBar = document.getElementById('seekBar');
+    displayTime = seekBar.value;
+  }
+
+  // Set |currentTime|.
+  if (playerControls.isLive_) {
+    // The amount of time we are behind the live edge.
+    displayTime = Math.max(0, Math.floor(seekRange.end - displayTime));
+    var showHour = (seekRange.end - seekRange.start) >= 3600;
+
+    // Consider "LIVE" when 1 second or less behind the live-edge.  Always show
+    // the full time string when seeking, including the leading '-'; otherwise,
+    // the time string "flickers" near the live-edge.
+    if ((displayTime > 1) || playerControls.isSeeking_) {
+      currentTime.textContent =
+          '- ' + playerControls.buildTimeString_(displayTime, showHour);
+    } else {
+      currentTime.textContent = 'LIVE';
+    }
+
+    seekBar.min = seekRange.start;
+    seekBar.max = seekRange.end;
+    seekBar.value = seekRange.end - displayTime;
+  } else {
+    var showHour = video.duration >= 3600;
+    currentTime.textContent =
+        playerControls.buildTimeString_(displayTime, showHour);
+
+    seekBar.min = 0;
+    seekBar.max = video.duration;
+    seekBar.value = displayTime;
+  }
+
+  var gradient = ['to right'];
+  var buffered = video.buffered;
+  if (buffered.length == 0) {
+    gradient.push('#000 0%');
+  } else {
+    // NOTE: the fallback to zero eliminates NaN.
+    var bufferStartFraction = (buffered.start(0) / video.duration) || 0;
+    var bufferEndFraction = (buffered.end(0) / video.duration) || 0;
+    var playheadFraction = (video.currentTime / video.duration) || 0;
+
+    if (playerControls.isLive_) {
+      var bufferStart = Math.max(buffered.start(0), seekRange.start);
+      var bufferEnd = Math.min(buffered.end(0), seekRange.end);
+      var seekRangeSize = seekRange.end - seekRange.start;
+      var bufferStartDistance = bufferStart - seekRange.start;
+      var bufferEndDistance = bufferEnd - seekRange.start;
+      var playheadDistance = video.currentTime - seekRange.start;
+      bufferStartFraction = (bufferStartDistance / seekRangeSize) || 0;
+      bufferEndFraction = (bufferEndDistance / seekRangeSize) || 0;
+      playheadFraction = (playheadDistance / seekRangeSize) || 0;
+    }
+
+    gradient.push('#000 ' + (bufferStartFraction * 100) + '%');
+    gradient.push('#ccc ' + (bufferStartFraction * 100) + '%');
+    gradient.push('#ccc ' + (playheadFraction * 100) + '%');
+    gradient.push('#444 ' + (playheadFraction * 100) + '%');
+    gradient.push('#444 ' + (bufferEndFraction * 100) + '%');
+    gradient.push('#000 ' + (bufferEndFraction * 100) + '%');
+  }
+  seekBar.style.background = 'linear-gradient(' + gradient.join(',') + ')';
+};
+
+
+/**
+ * Builds a time string, e.g., 01:04:23, from |displayTime|.
+ *
+ * @param {number} displayTime
+ * @param {boolean} showHour
+ * @return {string}
+ * @private
+ */
+playerControls.buildTimeString_ = function(displayTime, showHour) {
+  var h = Math.floor(displayTime / 3600);
+  var m = Math.floor((displayTime / 60) % 60);
+  var s = Math.floor(displayTime % 60);
+  if (s < 10) s = '0' + s;
+  var text = m + ':' + s;
+  if (showHour) {
+    if (m < 10) text = '0' + text;
+    text = h + ':' + text;
+  }
+  return text;
 };
 

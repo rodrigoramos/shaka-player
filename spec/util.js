@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * @fileoverview Utility function for unit tests.
+ * @fileoverview Utility functions for unit tests.
  */
 
 goog.require('shaka.asserts');
+goog.require('shaka.media.SegmentReference');
 goog.require('shaka.util.PublicPromise');
 goog.require('shaka.util.StringUtils');
 goog.require('shaka.util.Uint8ArrayUtils');
@@ -94,54 +95,20 @@ customMatchers.toMatchRange = function(util, customEqualityTesters) {
 
 
 /**
- * Adds fake event handling support to a Jasmine FakeXMLHttpRequest object.
+ * Jasmine-ajax doesn't send events as arguments when it calls event handlers.
+ * This binds very simple event stand-ins to all event handlers.
  *
  * @param {FakeXMLHttpRequest} xhr The FakeXMLHttpRequest object.
  */
 function mockXMLHttpRequestEventHandling(xhr) {
-  // Jasmine's FakeXMLHttpRequest class uses the attribute "response" as a
-  // method to set the fake response.  Our library uses it (correctly) to get
-  // the response itself.  We "fix" Jasmine's overloaded abuse of this by
-  // renaming this method to "fakeResponse" and adding a shim to handle
-  // the "response" field.
-  //
-  // Since Jasmine ignores the setting of "response", we will map it to
-  // "responseText" here, and map it back again in the "onload" spy below.
-  //
-  // Note that in a real request, with "responseType" set to "arraybuffer",
-  // "responseText" throws DOMException.  So our library does the right thing,
-  // and Jasmine's fake is deficient.
-  if (!xhr.fakeResponse) {
-    var originalResponseMethod = xhr.response;
-    console.assert(originalResponseMethod && originalResponseMethod.bind);
-    xhr.response = null;
-    xhr.fakeResponse = function(fields) {
-      if (fields.hasOwnProperty('response')) {
-        fields['responseText'] = fields['response'];
-      }
-      return originalResponseMethod.call(xhr, fields);
-    };
+  var fakeEvent = { 'target': xhr };
+
+  var events = ['onload', 'onerror', 'onreadystatechange'];
+  for (var i = 0; i < events.length; ++i) {
+    if (xhr[events[i]]) {
+      xhr[events[i]] = xhr[events[i]].bind(xhr, fakeEvent);
+    }
   }
-
-  // Mock out onload().
-  var onload = xhr.onload;
-  spyOn(xhr, 'onload').and.callFake(function() {
-    var fakeXMLHttpProgressEvent = {
-      'target': xhr
-    };
-    // After each load, overwrite "response" with "responseText".
-    xhr.response = xhr.responseText;
-    onload(fakeXMLHttpProgressEvent);
-  });
-
-  // Mock out onerror().
-  var onerror = xhr.onerror;
-  spyOn(xhr, 'onerror').and.callFake(function() {
-    var fakeXMLHttpProgressEvent = {
-      'target': xhr
-    };
-    onerror(fakeXMLHttpProgressEvent);
-  });
 }
 
 
@@ -205,18 +172,27 @@ var assertsToFailures = {
 
 /**
  * Called to interpret ContentProtection elements from an MPD.
- * @param {?shaka.player.DrmSchemeInfo.LicensePostProcessor} postProcessor
  * @param {!shaka.dash.mpd.ContentProtection} contentProtection
  * @return {shaka.player.DrmSchemeInfo} or null if the element is not supported.
  */
-function interpretContentProtection(postProcessor, contentProtection) {
+function interpretContentProtection(contentProtection) {
   var Uint8ArrayUtils = shaka.util.Uint8ArrayUtils;
 
   // This is the only scheme used in integration tests at the moment.
   if (contentProtection.schemeIdUri == 'com.youtube.clearkey') {
-    var child = contentProtection.children[0];
-    var keyid = Uint8ArrayUtils.fromHex(child.getAttribute('keyid'));
-    var key = Uint8ArrayUtils.fromHex(child.getAttribute('key'));
+    var license;
+    for (var i = 0; i < contentProtection.children.length; ++i) {
+      var child = contentProtection.children[i];
+      if (child.nodeName == 'ytdrm:License') {
+        license = child;
+        break;
+      }
+    }
+    if (!license) {
+      return null;
+    }
+    var keyid = Uint8ArrayUtils.fromHex(license.getAttribute('keyid'));
+    var key = Uint8ArrayUtils.fromHex(license.getAttribute('key'));
     var keyObj = {
       kty: 'oct',
       alg: 'A128KW',
@@ -232,8 +208,7 @@ function interpretContentProtection(postProcessor, contentProtection) {
     var licenseServerUrl = 'data:application/json;base64,' +
         shaka.util.StringUtils.toBase64(license);
     return new shaka.player.DrmSchemeInfo(
-        'org.w3.clearkey', false, licenseServerUrl, false, initData,
-        postProcessor);
+        'org.w3.clearkey', licenseServerUrl, false, initData, null);
   }
 
   return null;
@@ -282,5 +257,22 @@ function checkUrlTypeObject(actual, expected) {
   } else {
     expect(actual).toBeNull();
   }
+}
+
+
+/**
+ * @param {!shaka.media.SegmentReference} reference
+ * @param {string} url
+ * @param {number} start
+ * @param {number} end
+ */
+function checkReference(reference, url, start, end) {
+  expect(reference).toBeTruthy();
+  expect(reference.url).toBeTruthy();
+  expect(reference.url.toString()).toBe(url);
+  expect(reference.startByte).toBe(0);
+  expect(reference.endByte).toBeNull();
+  expect(reference.startTime).toBe(start);
+  expect(reference.endTime).toBe(end);
 }
 

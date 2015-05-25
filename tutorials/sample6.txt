@@ -159,12 +159,11 @@
     var video;
     var hd;
     var player;
+    var estimator;
 
     function initPlayer() {
       // Install polyfills.
-      shaka.polyfill.Fullscreen.install();
-      shaka.polyfill.MediaKeys.install();
-      shaka.polyfill.VideoPlaybackQuality.install();
+      shaka.polyfill.installAll();
 
       // Get important elements.
       video = document.getElementById('video');
@@ -181,6 +180,12 @@
 
       // Listen for errors from the Player.
       player.addEventListener('error', onError);
+
+      // Construct a persistent bandwidth estimator to pass to video sources.
+      // This will allow second and subsequent playbacks to benefit from
+      // earlier bandwidth estimations and avoid starting at a low-quality
+      // stream.
+      estimator = new shaka.util.EWMABandwidthEstimator();
     }
 
     /**
@@ -238,11 +243,18 @@
      * @param {!HTMLImageElement} image
      */
     function onImageClick(image) {
+      // Disregard any bandwidth data older than one hour.  The user may have
+      // changed networks if they are on a laptop or mobile device.
+      if (estimator.getDataAge() >= 3600) {
+        estimator = new shaka.util.EWMABandwidthEstimator();
+      }
+
       // Construct a DashVideoSource to represent the DASH manifest and provide
       // a callback to interpret the ContentProtection elements (if any).
       var mpdUrl = 'http://turtle-tube.appspot.com/t/' + image.id + '/dash.mpd';
       var source = new shaka.player.DashVideoSource(mpdUrl,
-                                                    interpretContentProtection);
+                                                    interpretContentProtection,
+                                                    estimator);
 
       // Show the video player overlay.
       var overlay = document.getElementById('videoOverlay');
@@ -272,7 +284,6 @@
         var keySystem = 'com.widevine.alpha';
 
         return new shaka.player.DrmSchemeInfo(keySystem,
-                                              true /* suppressMultipleEvents */,
                                               licenseServerUrl,
                                               false /* withCredentials */,
                                               null /* initData */,

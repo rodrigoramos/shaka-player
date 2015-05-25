@@ -54,3 +54,7 @@ tr {
   text-shadow: 3px 3px 3px #101010;
   line-height: 125%;
 }
+
+.offline {
+  display: none;
+}

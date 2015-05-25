@@ -18,9 +18,7 @@
   <script>
     function initPlayer() {
       // Install polyfills.
-      shaka.polyfill.Fullscreen.install();
-      shaka.polyfill.MediaKeys.install();
-      shaka.polyfill.VideoPlaybackQuality.install();
+      shaka.polyfill.installAll();
 
       // Find the video element.
       var video = document.getElementById('video');
@@ -38,7 +36,8 @@
 
       // Construct a DashVideoSource to represent the DASH manifest.
       var mpdUrl = 'http://turtle-tube.appspot.com/t/t2/dash.mpd';
-      var source = new shaka.player.DashVideoSource(mpdUrl, null);
+      var estimator = new shaka.util.EWMABandwidthEstimator();
+      var source = new shaka.player.DashVideoSource(mpdUrl, null, estimator);
 
       // Load the source into the Player.
       // Then query the video tracks to display in the videoTracks list element.
@@ -58,7 +57,7 @@
           text += ' ' + (track.bandwidth / 1024).toFixed(0) + ' kbits/s';
 
           var li = document.createElement('li');
-          li.innerText = text;
+          li.textContent = text;
           ul.appendChild(li);
         }
 
@@ -71,7 +70,7 @@
         }
 
         // Begin playback, since autoplay is not enabled on the video tag.
-        player.play();
+        video.play();
       });
     }
     document.addEventListener('DOMContentLoaded', initPlayer);

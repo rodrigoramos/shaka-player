@@ -17,9 +17,7 @@
   <script>
     function initPlayer() {
       // Install polyfills.
-      shaka.polyfill.Fullscreen.install();
-      shaka.polyfill.MediaKeys.install();
-      shaka.polyfill.VideoPlaybackQuality.install();
+      shaka.polyfill.installAll();
 
       // Find the video element.
       var video = document.getElementById('video');
@@ -38,8 +36,10 @@
       // Construct a DashVideoSource to represent the DASH manifest and provide
       // a callback to interpret the ContentProtection elements.
       var mpdUrl = 'http://turtle-tube.appspot.com/t/e6/dash.mpd';
+      var estimator = new shaka.util.EWMABandwidthEstimator();
       var source = new shaka.player.DashVideoSource(mpdUrl,
-                                                    interpretContentProtection);
+                                                    interpretContentProtection,
+                                                    estimator);
 
       // Load the source into the Player.
       player.load(source);
@@ -65,7 +65,6 @@
         var keySystem = 'com.widevine.alpha';
 
         return new shaka.player.DrmSchemeInfo(keySystem,
-                                              true /* suppressMultipleEvents */,
                                               licenseServerUrl,
                                               false /* withCredentials */,
                                               null /* initData */,
