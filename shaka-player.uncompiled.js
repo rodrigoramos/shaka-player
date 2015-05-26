@@ -17,7 +17,6 @@
  */
 
 goog.require('shaka.player.DashVideoSource');
-goog.require('shaka.player.DashVideoSourceExternalSubtitles');
 goog.require('shaka.player.DrmSchemeInfo');
 goog.require('shaka.player.HttpVideoSource');
 goog.require('shaka.player.OfflineVideoSource');
