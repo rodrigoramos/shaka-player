@@ -449,7 +449,41 @@ describe('mpd', function() {
     expect(mpd).toBeTruthy();
   });
 
-  it('defaults startNumber to 1', function() {
+  it('defaults startNumber to 1 when missing', function() {
+    var source = [
+      '<MPD>',
+      '  <Period id="1" duration="PT0H1M0.00S">',
+      '    <AdaptationSet id="1" lang="en" contentType="audio">',
+      '      <SegmentTemplate />',
+      '    </AdaptationSet>',
+      '  </Period>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var period = mpd.periods[0];
+    var adaptationSet = period.adaptationSets[0];
+    var segmentTemplate = adaptationSet.segmentTemplate;
+    expect(segmentTemplate.startNumber).toBe(1);
+  });
+
+  it('defaults startNumber to 1 when invalid', function() {
+    var source = [
+      '<MPD>',
+      '  <Period id="1" duration="PT0H1M0.00S">',
+      '    <AdaptationSet id="1" lang="en" contentType="audio">',
+      '      <SegmentTemplate startNumber="-1" />',
+      '    </AdaptationSet>',
+      '  </Period>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var period = mpd.periods[0];
+    var adaptationSet = period.adaptationSets[0];
+    var segmentTemplate = adaptationSet.segmentTemplate;
+    expect(segmentTemplate.startNumber).toBe(1);
+  });
+
+  it('allows startNumber to be 0', function() {
     var source = [
       '<MPD>',
       '  <Period id="1" duration="PT0H1M0.00S">',
@@ -463,7 +497,7 @@ describe('mpd', function() {
     var period = mpd.periods[0];
     var adaptationSet = period.adaptationSets[0];
     var segmentTemplate = adaptationSet.segmentTemplate;
-    expect(segmentTemplate.startNumber).toBe(1);
+    expect(segmentTemplate.startNumber).toBe(0);
   });
 
   it('does not override valid zeros with defaults', function() {
@@ -473,6 +507,29 @@ describe('mpd', function() {
 
     var mpd = shaka.dash.mpd.parseMpd(source, '');
     expect(mpd.minBufferTime).toBe(0);
+  });
+
+  it('handles a Location element', function() {
+    var source = [
+      '<MPD>',
+      '  <Location>http://example.com/updated_mpd</Location>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, 'http://example.com/mpd');
+    expect(mpd.updateLocation.toString()).toBe(
+        'http://example.com/updated_mpd');
+  });
+
+  it('handles a Location element with a BaseURL', function() {
+    var source = [
+      '<MPD>',
+      '  <BaseURL>http://example.com</BaseURL>',
+      '  <Location>updated_mpd</Location>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, 'http://example.com/mpd');
+    expect(mpd.updateLocation.toString()).toBe(
+        'http://example.com/updated_mpd');
   });
 });
 

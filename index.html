@@ -107,7 +107,7 @@
       <tr class="dash">
         <td>
           Custom WV license server URL:
-          <span title="If specified, overrides interpretation of ContentProtection elements in the manifest. Implies the use of Widevine.">[?]</span>
+          <span title="If specified, overrides the license server URL for Widevine protected content.">[?]</span>
         </td>
         <td colspan="2">
           <input id="wvLicenseServerUrlInput" type="text" style="width: 98%;">
@@ -167,8 +167,14 @@
 
     <table>
       <tr>
-        <td colspan="2" class="heading">Stream info</td>
+        <td colspan="2" class="heading">Stream Info</td>
         <td id="version"></td>
+      </tr>
+      <tr>
+        <td colspan="3">
+          Enable trick play?
+          <input id="trickPlayEnabled" type="checkbox" onchange="app.onTrickPlayChange()">
+        </td>
       </tr>
       <tr>
         <td colspan="3">
@@ -179,12 +185,12 @@
       <tr>
         <td>Available video tracks:</td>
         <td><select id="videoTracks" onchange="app.onVideoChange()"></select></td>
-        <td><button id="cycleVideo" onclick="app.cycleVideo()">Cycle video tracks</button></td>
+        <td><input type ="checkbox" id="cycleVideo" onchange="app.cycleVideo()">Cycle video tracks</button></td>
       </tr>
       <tr>
         <td>Available audio tracks:</td>
         <td><select id="audioTracks" onchange="app.onAudioChange()"></select></td>
-        <td><button id="cycleAudio" onclick="app.cycleAudio()">Cycle audio tracks</button></td>
+        <td><input type ="checkbox" id="cycleAudio" onchange="app.cycleAudio()">Cycle audio tracks</button></td>
       </tr>
       <tr>
         <td>Available text tracks:</td>
@@ -197,6 +203,14 @@
       <tr>
         <td>Active resolution:</td>
         <td id="videoResDebug" colspan="2"></td>
+      </tr>
+      <tr>
+        <td>Buffered ahead:</td>
+        <td id="bufferedAheadDebug" colspan="2"></td>
+      </tr>
+      <tr>
+        <td>Buffered behind:</td>
+        <td id="bufferedBehindDebug" colspan="2"></td>
       </tr>
     </table>
 
@@ -211,7 +225,9 @@
         <input id="playButton" type="button">
         <input id="pauseButton" type="button">
         <input id="seekBar" type="range" step="any" min="0" max="1">
+        <input id="rewindButton" type="button">
         <div id="currentTime">0:00</div>
+        <input id="fastForwardButton" type="button">
         <input id="muteButton" type="button">
         <input id="unmuteButton" type="button">
         <input id="volumeBar" type="range" step="any" min="0" max="1">

@@ -18,6 +18,8 @@
 
 goog.require('shaka.asserts');
 goog.require('shaka.media.SegmentReference');
+goog.require('shaka.player.IVideoSource');
+goog.require('shaka.util.EventManager');
 goog.require('shaka.util.PublicPromise');
 goog.require('shaka.util.StringUtils');
 goog.require('shaka.util.Uint8ArrayUtils');
@@ -261,18 +263,140 @@ function checkUrlTypeObject(actual, expected) {
 
 
 /**
+ * Checks that the given references have the correct times and byte ranges.
+ *
+ * @param {!Array.<!shaka.media.SegmentReference>} references
+ * @param {string} expectedUrl
+ * @param {!Array.<number>} expectedStartTimes
+ * @param {!Array.<number>} expectedStartBytes
+ */
+function checkReferences(
+    references,
+    expectedUrl,
+    expectedStartTimes,
+    expectedStartBytes) {
+  console.assert(expectedStartTimes.length == expectedStartBytes.length);
+  expect(references.length).toBe(expectedStartTimes.length);
+  for (var i = 0; i < expectedStartTimes.length; i++) {
+    var reference = references[i];
+    var expectedStartTime = expectedStartTimes[i];
+    var expectedStartByte = expectedStartBytes[i];
+
+    expect(reference).toBeTruthy();
+    expect(reference.url).toBeTruthy();
+    expect(reference.url.toString()).toBe(expectedUrl);
+
+    expect(reference.startTime.toFixed(3)).toBe(expectedStartTime.toFixed(3));
+    expect(reference.startByte).toBe(expectedStartByte);
+
+    // The final end time and final end byte are dependent on the specific
+    // content, so for simplicity just omit checking them.
+    var isLast = (i == expectedStartTimes.length - 1);
+    if (!isLast) {
+      var expectedEndTime = expectedStartTimes[i + 1];
+      var expectedEndByte = expectedStartBytes[i + 1] - 1;
+      expect(reference.endTime.toFixed(3)).toBe(expectedEndTime.toFixed(3));
+      expect(reference.endByte).toBe(expectedEndByte);
+    }
+  }
+}
+
+
+/**
+ * Checks the given reference; expects its |startByte| and |endByte| fields to
+ * be 0 and null respectively.
+ *
  * @param {!shaka.media.SegmentReference} reference
  * @param {string} url
- * @param {number} start
- * @param {number} end
+ * @param {number} startTime
+ * @param {number} endTime
  */
-function checkReference(reference, url, start, end) {
+function checkReference(reference, url, startTime, endTime) {
   expect(reference).toBeTruthy();
   expect(reference.url).toBeTruthy();
   expect(reference.url.toString()).toBe(url);
   expect(reference.startByte).toBe(0);
   expect(reference.endByte).toBeNull();
-  expect(reference.startTime).toBe(start);
-  expect(reference.endTime).toBe(end);
+  expect(reference.startTime).toBe(startTime);
+  expect(reference.endTime).toBe(endTime);
 }
 
+
+/**
+ * Waits for a video time to increase.
+ * @param {!HTMLMediaElement} video The playing video.
+ * @param {!shaka.util.EventManager} eventManager
+ * @return {!Promise} resolved when the video's currentTime changes.
+ */
+function waitForMovement(video, eventManager) {
+  var promise = new shaka.util.PublicPromise;
+  var originalTime = video.currentTime;
+  eventManager.listen(video, 'timeupdate', function() {
+    if (video.currentTime != originalTime) {
+      eventManager.unlisten(video, 'timeupdate');
+      promise.resolve();
+    }
+  });
+  return promise;
+}
+
+
+/**
+ * @param {!HTMLMediaElement} video The playing video.
+ * @param {!shaka.util.EventManager} eventManager
+ * @param {number} targetTime in seconds
+ * @param {number} timeout in seconds
+ * @return {!Promise} resolved when the video's currentTime >= |targetTime|.
+ */
+function waitForTargetTime(video, eventManager, targetTime, timeout) {
+  var promise = new shaka.util.PublicPromise;
+  var stack = (new Error('stacktrace')).stack.split('\n').slice(1).join('\n');
+
+  var timeoutId = window.setTimeout(function() {
+    // This expectation will fail, but will provide specific values to
+    // Jasmine to help us debug timeout issues.
+    expect(video.currentTime).toBeGreaterThan(targetTime);
+    eventManager.unlisten(video, 'timeupdate');
+    // Reject the promise, but replace the error's stack with the original
+    // call stack.  This timeout handler's stack is not helpful.
+    var error = new Error('Timeout waiting for video time ' + targetTime);
+    error.stack = stack;
+    promise.reject(error);
+  }, timeout * 1000);
+
+  eventManager.listen(video, 'timeupdate', function() {
+    if (video.currentTime > targetTime) {
+      // This expectation will pass, but will keep Jasmine from complaining
+      // about tests which have no expectations.  In practice, some tests
+      // only need to demonstrate that they have reached a certain target.
+      expect(video.currentTime).toBeGreaterThan(targetTime);
+      eventManager.unlisten(video, 'timeupdate');
+      window.clearTimeout(timeoutId);
+      promise.resolve();
+    }
+  });
+  return promise;
+}
+
+
+/**
+ * Creates a new DashVideoSource out of the manifest.
+ * @param {string} manifest
+ * @return {!shaka.player.DashVideoSource}
+ */
+function newSource(manifest) {
+  var estimator = new shaka.util.EWMABandwidthEstimator();
+  return new shaka.player.DashVideoSource(manifest,
+                                          interpretContentProtection,
+                                          estimator);
+}
+
+
+/**
+ * @param {!Event} event
+ */
+function convertErrorToTestFailure(event) {
+  // Treat all player errors as test failures.
+  var error = event.detail;
+  fail(error);
+}

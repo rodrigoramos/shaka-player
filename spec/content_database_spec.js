@@ -26,6 +26,7 @@ goog.require('shaka.util.PublicPromise');
 goog.require('shaka.util.RangeRequest');
 
 describe('ContentDatabase', function() {
+  var fakeIndexSource, fakeInitSource;
   var db, p, testIndex, testReferences, streamInfo;
   var originalTimeout, originalRangeRequest, originalName;
 
@@ -33,13 +34,13 @@ describe('ContentDatabase', function() {
   const mime = 'video/phony';
   const codecs = 'phony';
   const duration = 100;
-  const initSegment = new ArrayBuffer(1024);
+  const testInitData = new ArrayBuffer(1024);
   const keySystem = 'test.widevine.com';
   const licenseServerUrl = 'www.licenseServer.com';
   const expectedReferences = [
-    { index: 0, start_time: 0, end_time: 2 },
-    { index: 1, start_time: 2, end_time: 4 },
-    { index: 2, start_time: 4, end_time: null }
+    { start_time: 0, end_time: 2 },
+    { start_time: 2, end_time: 4 },
+    { start_time: 4, end_time: null }
   ];
   const drmScheme = new shaka.player.DrmSchemeInfo(
       keySystem, licenseServerUrl, false, null);
@@ -49,8 +50,7 @@ describe('ContentDatabase', function() {
       return {
         compare: function(actual, expected) {
           var result = {};
-          result.pass = util.equals(actual.index, expected.index) &&
-              util.equals(actual.index, expected.index) &&
+          result.pass =
               util.equals(actual.start_time, expected.start_time) &&
               util.equals(actual.end_time, expected.end_time) &&
               actual.url.match(/idb\:\/\/.+\/.+/);
@@ -79,11 +79,11 @@ describe('ContentDatabase', function() {
 
     var testUrl = new goog.Uri(url);
     testReferences = [
-      new shaka.media.SegmentReference(0, 0, 1, 0, 5, testUrl),
-      new shaka.media.SegmentReference(1, 1, 2, 6, 9, testUrl),
-      new shaka.media.SegmentReference(2, 2, 3, 10, 15, testUrl),
-      new shaka.media.SegmentReference(3, 3, 4, 16, 19, testUrl),
-      new shaka.media.SegmentReference(4, 4, null, 20, null, testUrl)];
+      new shaka.media.SegmentReference(0, 1, 0, 5, testUrl),
+      new shaka.media.SegmentReference(1, 2, 6, 9, testUrl),
+      new shaka.media.SegmentReference(2, 3, 10, 15, testUrl),
+      new shaka.media.SegmentReference(3, 4, 16, 19, testUrl),
+      new shaka.media.SegmentReference(4, null, 20, null, testUrl)];
     testIndex = new shaka.media.SegmentIndex(testReferences);
 
     // Use a database name which will not affect the test app.
@@ -91,6 +91,16 @@ describe('ContentDatabase', function() {
     shaka.util.ContentDatabase.DB_NAME_ += '_test';
     // Start each test run with a clean slate.
     (new shaka.util.ContentDatabase(null)).deleteDatabase();
+
+    fakeIndexSource = {
+      destroy: function() {},
+      create: function() { return Promise.resolve(testIndex); }
+    };
+
+    fakeInitSource = {
+      destroy: function() {},
+      create: function() { return Promise.resolve(testInitData); }
+    };
   });
 
   beforeEach(function() {
@@ -100,8 +110,8 @@ describe('ContentDatabase', function() {
     streamInfo = new shaka.media.StreamInfo();
     streamInfo.mimeType = mime;
     streamInfo.codecs = codecs;
-    streamInfo.segmentInitializationData = initSegment;
-    streamInfo.segmentIndex = testIndex;
+    streamInfo.segmentIndexSource = fakeIndexSource;
+    streamInfo.segmentInitSource = fakeInitSource;
   });
 
   afterEach(function() {
@@ -145,7 +155,8 @@ describe('ContentDatabase', function() {
 
   it('stores a stream and retrieves its index', function(done) {
     p.then(function() {
-      return db.insertStream_(streamInfo, testReferences.length, 0);
+      return db.insertStream_(
+          streamInfo, testIndex, testInitData, testReferences.length, 0);
     }).then(function(streamId) {
       return db.retrieveStreamIndex(streamId);
     }).then(function(streamIndex) {
@@ -161,20 +172,23 @@ describe('ContentDatabase', function() {
 
   it('stores a stream with a single segment and retrieves its index',
       function(done) {
-        var references = [new shaka.media.SegmentReference(
-           0, 0, null, 6, null, new goog.Uri(url))];
+        var references = [
+          new shaka.media.SegmentReference(0, null, 6, null, new goog.Uri(url))
+        ];
         var index = new shaka.media.SegmentIndex(references);
-        streamInfo.segmentIndex = index;
+        streamInfo.segmentIndexSource = {
+          create: function() { return Promise.resolve(index); }
+        };
         p.then(function() {
-          return db.insertStream_(streamInfo, 1, 0);
+          return db.insertStream_(streamInfo, index, testInitData, 1, 0);
         }).then(function(streamId) {
           return db.retrieveStreamIndex(streamId);
         }).then(function(streamIndex) {
           expect(streamIndex.references[0]).toMatchReference(
-              { index: 0, start_time: 0, end_time: null });
+              { start_time: 0, end_time: null });
           expect(streamIndex.codecs).toEqual(codecs);
           expect(streamIndex.mime_type).toEqual(mime);
-          expect(streamIndex.init_segment).toEqual(initSegment);
+          expect(streamIndex.init_segment).toEqual(testInitData);
           done();
         }).catch(function(err) {
           fail(err);
@@ -184,7 +198,7 @@ describe('ContentDatabase', function() {
 
   it('throws an error when trying to store an invalid stream', function(done) {
     p.then(function() {
-      return db.insertStream_(null, 0, 0);
+      return db.insertStream_(null, null, null, 0, 0);
     }).then(function() {
       fail();
       done();
@@ -197,7 +211,8 @@ describe('ContentDatabase', function() {
   it('deletes a stream index and throws error on retrieval', function(done) {
     var streamId;
     p.then(function() {
-      return db.insertStream_(streamInfo, testReferences.length, 0);
+      return db.insertStream_(
+          streamInfo, testIndex, testInitData, testReferences.length, 0);
     }).then(function(data) {
       streamId = data;
       return db.deleteStream(streamId);
@@ -214,7 +229,8 @@ describe('ContentDatabase', function() {
 
   it('retrieves a segment', function(done) {
     p.then(function() {
-      return db.insertStream_(streamInfo, testReferences.length, 0);
+      return db.insertStream_(
+          streamInfo, testIndex, testInitData, testReferences.length, 0);
     }).then(function(streamId) {
       return db.retrieveSegment(streamId, 0);
     }).then(function(data) {
@@ -240,7 +256,8 @@ describe('ContentDatabase', function() {
 
   it('retrieves streams initialization segment', function(done) {
     p.then(function() {
-      return db.insertStream_(streamInfo, testReferences.length, 0);
+      return db.insertStream_(
+          streamInfo, testIndex, testInitData, testReferences.length, 0);
     }).then(function(streamId) {
       return db.retrieveInitSegment(streamId);
     }).then(function(data) {

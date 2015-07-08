@@ -38,6 +38,22 @@ app.videoResDebug_ = null;
 
 
 /**
+ * The buffered ahead debug element owned by the app.
+ *
+ * @private {Element}
+ */
+app.bufferedAheadDebug_ = null;
+
+
+/**
+ * The buffered behind debug element owned by the app.
+ *
+ * @private {Element}
+ */
+app.bufferedBehindDebug_ = null;
+
+
+/**
  * True if the aspect ratio has been set for this playback.
  *
  * @private {boolean}
@@ -80,6 +96,27 @@ app.offlineStreams_ = [];
 
 
 /**
+ * @type {boolean} The state of adaptation before video cycling was started.
+ * @private
+ */
+app.originalAdaptationEnabled_ = true;
+
+
+/**
+ * @type {?number} The lastest audio cycle interval set.
+ * @private
+ */
+app.audioCycleInterval_ = null;
+
+
+/**
+ * @type {?number} The lastest video cycle interval set.
+ * @private
+ */
+app.videoCycleInterval_ = null;
+
+
+/**
  * Initializes the application.
  */
 app.init = function() {
@@ -101,14 +138,16 @@ app.init = function() {
   app.video_ =
       /** @type {!HTMLVideoElement} */ (document.getElementById('video'));
   app.videoResDebug_ = document.getElementById('videoResDebug');
-  window.setInterval(app.updateVideoSize_, 50);
+  app.bufferedAheadDebug_ = document.getElementById('bufferedAheadDebug');
+  app.bufferedBehindDebug_ = document.getElementById('bufferedBehindDebug');
+  window.setInterval(app.updateDebugInfo_, 50);
 
-  var fields = location.search.split('?').pop();
+  var fields = location.search.split('?').slice(1).join('?');
   fields = fields ? fields.split(';') : [];
   var params = {};
   for (var i = 0; i < fields.length; ++i) {
     var kv = fields[i].split('=');
-    params[kv[0]] = kv[1];
+    params[kv[0]] = kv.slice(1).join('=');
   }
 
   if ('prefixed' in params) {
@@ -164,6 +203,10 @@ app.init = function() {
     document.getElementById('manifestUrlInput').value = params['asset'];
     app.onMpdCustom();
   }
+  if ('license' in params) {
+    document.getElementById('wvLicenseServerUrlInput').value =
+        params['license'];
+  }
 
   if ('dash' in params) {
     document.getElementById('streamTypeList').value = 'dash';
@@ -175,11 +218,17 @@ app.init = function() {
   app.onStreamTypeChange();
 
   if ('cycleVideo' in params) {
+    document.getElementById('cycleVideo').checked = true;
     app.cycleVideo();
   }
   if ('cycleAudio' in params) {
+    document.getElementById('cycleAudio').checked = true;
     app.cycleAudio();
   }
+  app.video_.addEventListener('ended', function() {
+    app.resetCycleState_('videoTracks', 'cycleVideo', true);
+    app.resetCycleState_('audioTracks', 'cycleAudio', false);
+  });
 };
 
 
@@ -269,6 +318,18 @@ app.onVideoChange = function(opt_immediate) {
 
 
 /**
+ * Called when trick play is enabled or disabled.
+ */
+app.onTrickPlayChange = function() {
+  var enable = document.getElementById('trickPlayEnabled').checked;
+  playerControls.enableTrickPlayButtons(enable);
+  if (!enable && app.player_) {
+    app.player_.setPlaybackRate(1.0);
+  }
+};
+
+
+/**
  * Called when adaptation is enabled or disabled.
  */
 app.onAdaptationChange = function() {
@@ -305,7 +366,7 @@ app.onTextChange = function() {
 app.cycleAudio = function() {
   app.cycleTracks_('cycleAudio', 'audioTracks', 3, function() {
     app.onAudioChange();
-  }, function() {});
+  }, false);
 };
 
 
@@ -313,63 +374,76 @@ app.cycleAudio = function() {
  * A demo function to cycle through video tracks.
  */
 app.cycleVideo = function() {
-  // Disable adaptation.
-  var adaptationEnabled = document.getElementById('adaptationEnabled');
-  var originalAdaptationEnabled = adaptationEnabled.checked;
-  adaptationEnabled.checked = false;
-  adaptationEnabled.disabled = true;
-  app.onAdaptationChange();
+  if (document.getElementById('cycleVideo').checked) {
+    // Disable adaptation.
+    var adaptationEnabled = document.getElementById('adaptationEnabled');
+    app.originalAdaptationEnabled_ = adaptationEnabled.checked;
+    adaptationEnabled.checked = false;
+    adaptationEnabled.disabled = true;
+    app.onAdaptationChange();
+  }
 
   app.cycleTracks_('cycleVideo', 'videoTracks', 6, function() {
     // Select video track with immediate == false.  This switches in the same
     // smooth way as the AbrManager.
     app.onVideoChange(false);
-  }, function() {
-    // Re-enable adaptation.
-    adaptationEnabled.disabled = false;
-    adaptationEnabled.checked = originalAdaptationEnabled;
-    app.onAdaptationChange();
-  });
+  }, true);
 };
 
 
 /**
  * Common functionality for cycling through tracks.
- * @param {string} cycleButtonId
+ * @param {string} checkboxId
  * @param {string} tracksId
  * @param {number} seconds
  * @param {function()} onSelect
- * @param {function()} onComplete
+ * @param {boolean} isVideo
  * @private
  */
-app.cycleTracks_ =
-    function(cycleButtonId, tracksId, seconds, onSelect, onComplete) {
-  // Indicate that we are busy cycling.
-  var cycleButton = document.getElementById(cycleButtonId);
-  var originalCycleText = cycleButton.textContent;
-  cycleButton.textContent = 'Cycling...';
-  cycleButton.disabled = true;
-  // Prevent the user from changing the settings while we are cycling.
+app.cycleTracks_ = function(checkboxId, tracksId, seconds, onSelect, isVideo) {
   var tracks = document.getElementById(tracksId);
-  tracks.disabled = true;
+  if (document.getElementById(checkboxId).checked) {
+    // Prevent the user from changing the settings while we are cycling.
+    tracks.disabled = true;
 
-  var intervalId = window.setInterval(function() {
-    // On EOF, the video goes into a paused state.
-    if (app.video_.paused) {
-      window.clearInterval(intervalId);
-      // Allow the user to change the settings again.
-      tracks.disabled = false;
-      cycleButton.disabled = false;
-      cycleButton.textContent = originalCycleText;
-      onComplete();
-      return;
-    }
+    var intervalId = window.setInterval(function() {
+      var option = tracks.selectedOptions[0];
+      if (option) {
+        option = option.nextElementSibling || tracks.firstElementChild;
+        tracks.value = option.value;
+        onSelect();
+      } else {
+        app.resetCycleState_(tracksId, checkboxId, isVideo);
+      }
+    }, seconds * 1000);
 
-    var option = tracks.selectedOptions[0];
-    option = option.nextElementSibling || tracks.firstElementChild;
-    tracks.value = option.value;
-    onSelect();
-  }, seconds * 1000);
+    isVideo ? app.videoCycleInterval_ = intervalId :
+        app.audioCycleInterval_ = intervalId;
+  } else {
+    app.resetCycleState_(tracksId, checkboxId, isVideo);
+  }
+};
+
+
+/**
+ * Resets the state of a cycle checkbox.
+ * @param {string} tracksId
+ * @param {string} checkboxId
+ * @param {boolean} isVideo
+ * @private
+ */
+app.resetCycleState_ = function(tracksId, checkboxId, isVideo) {
+  var intervalId = isVideo ? app.videoCycleInterval_ : app.audioCycleInterval_;
+  window.clearInterval(intervalId);
+  document.getElementById(tracksId).disabled = false;
+  document.getElementById(checkboxId).checked = false;
+  if (isVideo) {
+    // Re-enable adaptation.
+    var adaptationEnabled = document.getElementById('adaptationEnabled');
+    adaptationEnabled.disabled = false;
+    adaptationEnabled.checked = app.originalAdaptationEnabled_;
+    app.onAdaptationChange();
+  }
 };
 
 
@@ -583,7 +657,10 @@ app.loadHttpStream = function() {
   var drmSchemeInfo = null;
   if (keySystem) {
     drmSchemeInfo = new shaka.player.DrmSchemeInfo(
-        keySystem, licenseServerUrl, false, null, null);
+        keySystem,
+        licenseServerUrl,
+        false /* withCredentials */,
+        null /* initData */);
   }
 
   app.load_(new shaka.player.HttpVideoSource(mediaUrl, subtitlesUrl,
@@ -739,10 +816,22 @@ app.displayMetadata_ = function() {
 
 
 /**
- * Update video resolution information.
+ * Update the debug information.
  * @private
  */
-app.updateVideoSize_ = function() {
+app.updateDebugInfo_ = function() {
+  app.updateVideoResDebug_();
+  app.updateBufferDebug_();
+};
+
+
+/**
+ * Update the video resolution information.
+ * @private
+ */
+app.updateVideoResDebug_ = function() {
+  console.assert(app.videoResDebug_);
+
   if (app.aspectRatioSet_ == false) {
     var aspect = app.video_.videoWidth / app.video_.videoHeight;
     if (aspect) {
@@ -765,6 +854,31 @@ app.updateVideoSize_ = function() {
 
   app.videoResDebug_.textContent =
       app.video_.videoWidth + ' x ' + app.video_.videoHeight;
+};
+
+
+/**
+ * Update the buffer information.
+ * @private
+ */
+app.updateBufferDebug_ = function() {
+  console.assert(app.bufferedAheadDebug_ && app.bufferedBehindDebug_);
+
+  var currentTime = app.video_.currentTime;
+  var buffered = app.video_.buffered;
+  var ahead = 0;
+  var behind = 0;
+
+  for (var i = 0; i < buffered.length; ++i) {
+    if (buffered.start(i) <= currentTime && buffered.end(i) >= currentTime) {
+      ahead = buffered.end(i) - currentTime;
+      behind = currentTime - buffered.start(i);
+      break;
+    }
+  }
+
+  app.bufferedAheadDebug_.textContent = Math.round(ahead) + ' seconds';
+  app.bufferedBehindDebug_.textContent = Math.round(behind) + ' seconds';
 };
 
 
@@ -819,6 +933,7 @@ app.initPlayer_ = function() {
       playerControls.onSeekRangeChanged);
 
   app.estimator_ = new shaka.util.EWMABandwidthEstimator();
+  playerControls.setPlayer(app.player_);
 
   // Load the adaptation setting.
   app.onAdaptationChange();
@@ -845,14 +960,19 @@ app.onPlayerError_ = function(event) {
 app.interpretContentProtection_ = function(contentProtection) {
   var Uint8ArrayUtils = shaka.util.Uint8ArrayUtils;
 
-  var override = document.getElementById('wvLicenseServerUrlInput');
-  if (override.value) {
-    // The user is using the test app's UI to override the MPD.
-    // This is useful to test external MPDs when no mapping is known in
-    // advance.
-    return new shaka.player.DrmSchemeInfo(
-        'com.widevine.alpha', override.value, false, null, null);
+  var initDataOverride = null;
+  if (contentProtection.pssh && contentProtection.pssh.psshBox) {
+    // Override the init data with the PSSH from the manifest.
+    initDataOverride = {
+      initData: contentProtection.pssh.psshBox,
+      initDataType: 'cenc'
+    };
+    console.info('Found overridden PSSH with system IDs:',
+                 contentProtection.pssh.parsedPssh.systemIds);
   }
+
+  var wvLicenseServerUrlOverride =
+      document.getElementById('wvLicenseServerUrlInput').value || null;
 
   if (contentProtection.schemeIdUri == 'com.youtube.clearkey') {
     // This is the scheme used by YouTube's MediaSource demo.
@@ -884,18 +1004,10 @@ app.interpretContentProtection_ = function(contentProtection) {
     var licenseServerUrl = 'data:application/json;base64,' +
         window.btoa(license);
     return new shaka.player.DrmSchemeInfo(
-        'org.w3.clearkey', licenseServerUrl, false, initData, null);
-  }
-
-  var initDataOverride = null;
-  if (contentProtection.pssh && contentProtection.pssh.psshBox) {
-    // Override the init data with the PSSH from the manifest.
-    initDataOverride = {
-      initData: contentProtection.pssh.psshBox,
-      initDataType: 'cenc'
-    };
-    console.info('Found overridden PSSH with system IDs:',
-                 contentProtection.pssh.parsedPssh.systemIds);
+        'org.w3.clearkey',
+        licenseServerUrl,
+        false /* withCredentials */,
+        initData);
   }
 
   if (contentProtection.schemeIdUri == 'http://youtube.com/drm/2012/10/10') {
@@ -905,23 +1017,30 @@ app.interpretContentProtection_ = function(contentProtection) {
       var child = contentProtection.children[i];
       if (child.nodeName == 'yt:SystemURL' &&
           child.getAttribute('type') == 'widevine') {
-        licenseServerUrl = child.textContent;
+        licenseServerUrl = wvLicenseServerUrlOverride || child.textContent;
         break;
       }
     }
     if (licenseServerUrl) {
       return new shaka.player.DrmSchemeInfo(
-          'com.widevine.alpha', licenseServerUrl, false, initDataOverride,
+          'com.widevine.alpha',
+          licenseServerUrl,
+          false /* withCredentials */,
+          initDataOverride,
           app.postProcessYouTubeLicenseResponse_);
     }
   }
 
-  if (contentProtection.schemeIdUri ==
+  if (contentProtection.schemeIdUri.toLowerCase() ==
       'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed') {
     // This is the UUID which represents Widevine in the edash-packager.
-    var licenseServerUrl = '//widevine-proxy.appspot.com/proxy';
+    var licenseServerUrl =
+        wvLicenseServerUrlOverride || '//widevine-proxy.appspot.com/proxy';
     return new shaka.player.DrmSchemeInfo(
-        'com.widevine.alpha', licenseServerUrl, false, initDataOverride, null);
+        'com.widevine.alpha',
+        licenseServerUrl,
+        false /* withCredentials */,
+        initDataOverride);
   }
 
   if (contentProtection.schemeIdUri == 'urn:mpeg:dash:mp4protection:2011') {

@@ -3,9 +3,12 @@
   { "player": { "title": "DASH Playback with the Shaka Player" } },
   { "offline": { "title": "Offline Playback with the Shaka Player" } },
   { "live": { "title": "Live Streaming" } },
+  { "trickplay": { "title": "Trick Play" } },
+  { "errors": { "title": "Listening for Errors" } },
   { "language": { "title": "Language Support" } },
   { "dev": { "title": "Shaka Player Development" } },
   { "windows": { "title": "Building on Windows" } },
   { "polyfills": { "title": "Polyfills" } },
-  { "caveats": { "title": "Content Restrictions" } }
+  { "caveats": { "title": "Content Restrictions" } },
+  { "porting": { "title": "Porting and Browser Support" } }
 ]
