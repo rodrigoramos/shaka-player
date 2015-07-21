@@ -14,7 +14,22 @@
 
 dir=$(dirname $0)/..
 
-GIT_VERSION=$(cd "$dir"; git describe --tags --dirty || echo unknown)
+function calculate_version() {
+  cd "$dir"
+  # Check git tags for a version number, noting if the sources are dirty.
+  if ! git describe --tags --dirty 2>/dev/null; then
+    # Fall back to NPM's installed package version, and assume the sources
+    # are dirty since the build scripts are being run at all after install.
+    npm ls | grep shaka-player | sed -e 's/.*@\(.*\?\) .*/\1-npm-dirty/'
+  fi
+}
+
+GIT_VERSION=$(calculate_version)
+
+# 'deprecatedAnnotations' controls complaints about @expose, but the new
+# @nocollapse annotation does not do the same job for properties.
+# So since we can't use the new annotations, we have to ignore complaints
+# about the old one.
 
 closure_opts="
   --language_in ECMASCRIPT5
@@ -45,6 +60,8 @@ closure_opts="
   --jscomp_error=unknownDefines
   --jscomp_error=uselessCode
   --jscomp_error=visibility
+
+  --jscomp_off=deprecatedAnnotations
 
   --extra_annotation_name=listens
 
@@ -89,7 +106,7 @@ function compile_0() {
 function lint_0() {
   # Allow JSDoc3 tags not normally recognized by the linter, but be strict
   # otherwise.
-  jsdoc3_tags=static,summary,namespace,event,description,property,fires,listens
+  jsdoc3_tags=static,summary,namespace,event,description,property,fires,listens,example
   xargs -0 "$dir"/third_party/gjslint/gjslint \
     --custom_jsdoc_tags $jsdoc3_tags \
     --strict "$@" 1>&2

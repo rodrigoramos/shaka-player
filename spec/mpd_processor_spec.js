@@ -182,6 +182,7 @@ describe('MpdProcessor', function() {
       r1.segmentTemplate = st;
       r2.segmentTemplate = st;
 
+      as.group = 1;
       as.segmentTemplate = st;
       as.representations.push(r1);
       as.representations.push(r2);
@@ -793,7 +794,9 @@ describe('MpdProcessor', function() {
         r.bandwidth = 250000;
         r.mimeType = 'video/mp4';
 
+        as.group = 1;
         as.representations.push(r);
+
         p.adaptationSets.push(as);
         m.periods.push(p);
         m.url = new goog.Uri('http://example.com/mpd');
@@ -894,12 +897,16 @@ describe('MpdProcessor', function() {
         r = new mpd.Representation();
         sl = new mpd.SegmentList();
 
+        p.duration = 100;
+
         r.segmentList = sl;
         r.baseUrl = new goog.Uri('http://example.com');
         r.bandwidth = 250000;
         r.mimeType = 'video/mp4';
 
+        as.group = 1;
         as.representations.push(r);
+
         p.adaptationSets.push(as);
         m.periods.push(p);
       });
@@ -926,7 +933,7 @@ describe('MpdProcessor', function() {
           checkReference(
               references[0],
               'http://example.com/video.mp4',
-              0, null);
+              0, 100);
 
           done();
         });
@@ -973,7 +980,9 @@ describe('MpdProcessor', function() {
         r.bandwidth = 250000;
         r.mimeType = 'video/mp4';
 
+        as.group = 1;
         as.representations.push(r);
+
         p.adaptationSets.push(as);
         m.periods.push(p);
       });
