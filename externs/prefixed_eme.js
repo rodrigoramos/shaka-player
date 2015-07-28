@@ -53,6 +53,11 @@ HTMLVideoElement.prototype.canPlayType =
     function(mimeType, opt_keySystem) {};
 
 
+/** @param {MSMediaKeys} msMediaKeys */
+HTMLMediaElement.prototype.msSetMediaKeys =
+    function(msMediaKeys) {};
+
+
 
 /**
  * @constructor
@@ -130,4 +135,41 @@ MediaKeyError.prototype.code;
 
 /** @type {number} */
 MediaKeyError.prototype.systemCode;
+
+
+
+/**
+  * @constructor
+  * @param {string} keySystem
+  */
+function MSMediaKeys(keySystem) {}
+
+
+/**
+ * @param {string} type MIME Type
+ * @param {Uint8Array} initData CDM Initialization Data
+ * @param {Object=} opt_cdmData CDM Data
+ */
+MSMediaKeys.prototype.createSession = function(type, initData, opt_cdmData) {};
+
+
+
+/** @constructor */
+function MSMediaKeySession() {}
+
+
+
+/**
+ * @constructor
+ * @extends {Event}
+ */
+function MSMediaKeyMessageEvent() {}
+
+
+/** @type {string} */
+MSMediaKeyMessageEvent.prototype.destinationURL;
+
+
+/** @type {Uint8Array} */
+MSMediaKeyMessageEvent.prototype.message;
 
