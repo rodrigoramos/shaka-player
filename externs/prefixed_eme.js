@@ -154,8 +154,66 @@ MSMediaKeys.prototype.createSession = function(type, initData, opt_cdmData) {};
 
 
 
-/** @constructor */
+/**
+ * An implementation of MediaKeySession.
+ *
+ * @constructor
+ * @implements {MediaKeySession}
+ * @extends {shaka.util.FakeEventTarget}
+ */
 function MSMediaKeySession() {}
+
+
+/** @const {string} */
+MSMediaKeySession.prototype.sessionId;
+
+
+/** @const {number} */
+MSMediaKeySession.prototype.expiration;
+
+
+/** @const {!Promise} */
+MSMediaKeySession.prototype.closed;
+
+
+/** @const {!MediaKeyStatusMap} */
+MSMediaKeySession.prototype.keyStatuses;
+
+
+/**
+ * @param {string} initDataType
+ * @param {?BufferSource} initData
+ * @nosideeffects
+ * @return {!Promise}
+ */
+MSMediaKeySession.prototype.generateRequest =
+    function(initDataType, initData) {};
+
+
+/**
+ * @param {string} sessionId
+ * @return {!Promise.<boolean>}}
+ */
+MSMediaKeySession.prototype.load = function(sessionId) {};
+
+
+/**
+ * @param {?BufferSource} response
+ * @return {!Promise}
+ */
+MSMediaKeySession.prototype.update = function(response) {};
+
+
+/** @return {!Promise} */
+MSMediaKeySession.prototype.close = function() {};
+
+
+/** @return {!Promise} */
+MSMediaKeySession.prototype.remove = function() {};
+
+
+/** @override */
+MSMediaKeySession.prototype.dispatchEvent = function(evt) {};
 
 
 
