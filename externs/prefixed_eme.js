@@ -180,6 +180,10 @@ MSMediaKeySession.prototype.closed;
 MSMediaKeySession.prototype.keyStatuses;
 
 
+/** @type {MSMediaKeyError} */
+MSMediaKeySession.prototype.error;
+
+
 /**
  * @param {string} initDataType
  * @param {?BufferSource} initData
@@ -231,3 +235,13 @@ MSMediaKeyMessageEvent.prototype.destinationURL;
 /** @type {Uint8Array} */
 MSMediaKeyMessageEvent.prototype.message;
 
+
+
+/**
+ * @constructor
+ */
+function MSMediaKeyError() {}
+
+
+/** @type {string} */
+MSMediaKeyError.prototype.code;
