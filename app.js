@@ -978,12 +978,6 @@ app.interpretContentProtection_ = function(contentProtection) {
   var wvLicenseServerUrlOverride =
       document.getElementById('wvLicenseServerUrlInput').value || null;
 
-  return new shaka.player.DrmSchemeInfo(
-        'com.microsoft.playready',
-        wvLicenseServerUrlOverride,
-        false /* withCredentials */,
-        initDataOverride);
-
   if (contentProtection.schemeIdUri == 'com.youtube.clearkey') {
     // This is the scheme used by YouTube's MediaSource demo.
     var license;
