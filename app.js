@@ -1047,6 +1047,36 @@ app.interpretContentProtection_ = function(contentProtection) {
         initDataOverride);
   }
 
+  if (contentProtection.schemeIdUri.toLowerCase() ==
+      'urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95') {
+    // This is the UUID which represents Microsoft PlayReady
+    return new shaka.player.DrmSchemeInfo(
+        'com.microsoft.playready',
+        wvLicenseServerUrlOverride,
+        false /* withCredentials */,
+        initDataOverride,
+        null,
+        function(info) {
+          info.headers['Content-Type'] = 'text/xml; charset=utf-8';
+          info.headers['SOAPAction'] =
+              'http://schemas.microsoft.com/DRM/2007/03/protocols/AcquireLicense';
+
+          var parser = new DOMParser();
+          var bytes = new Uint16Array(/** @type {ArrayBuffer} */ (info.body));
+          var msg = String.fromCharCode.apply(null, bytes);
+          var xmlDoc = parser.parseFromString(msg, 'application/xml');
+          var challengeNode = xmlDoc.getElementsByTagName('Challenge')[0];
+
+          if (!challengeNode) {
+            throw new Error(
+                'PlayReady: It was not possible to find the challenge node.');
+          }
+
+          var challenge = challengeNode.childNodes[0].nodeValue;
+          info.body = shaka.util.StringUtils.fromBase64(challenge);
+        });
+  }
+
   if (contentProtection.schemeIdUri == 'urn:mpeg:dash:mp4protection:2011') {
     // Ignore without a warning.
     return null;

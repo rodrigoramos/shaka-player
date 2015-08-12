@@ -53,6 +53,11 @@ HTMLVideoElement.prototype.canPlayType =
     function(mimeType, opt_keySystem) {};
 
 
+/** @param {MSMediaKeys} msMediaKeys */
+HTMLMediaElement.prototype.msSetMediaKeys =
+    function(msMediaKeys) {};
+
+
 
 /**
  * @constructor
@@ -131,3 +136,112 @@ MediaKeyError.prototype.code;
 /** @type {number} */
 MediaKeyError.prototype.systemCode;
 
+
+
+/**
+  * @constructor
+  * @param {string} keySystem
+  */
+function MSMediaKeys(keySystem) {}
+
+
+/**
+ * @param {string} type MIME Type
+ * @param {Uint8Array} initData CDM Initialization Data
+ * @param {Object=} opt_cdmData CDM Data
+ */
+MSMediaKeys.prototype.createSession = function(type, initData, opt_cdmData) {};
+
+
+
+/**
+ * An implementation of MediaKeySession.
+ *
+ * @constructor
+ * @implements {MediaKeySession}
+ * @extends {shaka.util.FakeEventTarget}
+ */
+function MSMediaKeySession() {}
+
+
+/** @const {string} */
+MSMediaKeySession.prototype.sessionId;
+
+
+/** @const {number} */
+MSMediaKeySession.prototype.expiration;
+
+
+/** @const {!Promise} */
+MSMediaKeySession.prototype.closed;
+
+
+/** @const {!MediaKeyStatusMap} */
+MSMediaKeySession.prototype.keyStatuses;
+
+
+/** @type {MSMediaKeyError} */
+MSMediaKeySession.prototype.error;
+
+
+/**
+ * @param {string} initDataType
+ * @param {?BufferSource} initData
+ * @nosideeffects
+ * @return {!Promise}
+ */
+MSMediaKeySession.prototype.generateRequest =
+    function(initDataType, initData) {};
+
+
+/**
+ * @param {string} sessionId
+ * @return {!Promise.<boolean>}}
+ */
+MSMediaKeySession.prototype.load = function(sessionId) {};
+
+
+/**
+ * @param {?BufferSource} response
+ * @return {!Promise}
+ */
+MSMediaKeySession.prototype.update = function(response) {};
+
+
+/** @return {!Promise} */
+MSMediaKeySession.prototype.close = function() {};
+
+
+/** @return {!Promise} */
+MSMediaKeySession.prototype.remove = function() {};
+
+
+/** @override */
+MSMediaKeySession.prototype.dispatchEvent = function(evt) {};
+
+
+
+/**
+ * @constructor
+ * @extends {Event}
+ */
+function MSMediaKeyMessageEvent() {}
+
+
+/** @type {string} */
+MSMediaKeyMessageEvent.prototype.destinationURL;
+
+
+/** @type {Uint8Array} */
+MSMediaKeyMessageEvent.prototype.message;
+
+
+
+/**
+ * @constructor
+ */
+function MSMediaKeyError() {}
+
+
+/** @type {string} */
+MSMediaKeyError.prototype.code;
