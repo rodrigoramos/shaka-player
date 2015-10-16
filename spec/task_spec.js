@@ -1,4 +1,5 @@
 /**
+ * @license
  * Copyright 2015 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @fileoverview Task unit tests.
  */
 
 goog.require('shaka.util.PublicPromise');
@@ -283,6 +282,33 @@ describe('Task', function() {
         done();
       }).catch(function(error) {
         fail(error);
+        done();
+      });
+    });
+  });
+
+  describe('getPromise', function() {
+    it('is rejected when a stage fails', function(done) {
+      var p = new shaka.util.PublicPromise();
+      t.append(function() { return [p]; });
+      t.start();
+
+      var timer = setTimeout(function() {
+        p.resolve();
+      }, 1500);
+
+      setTimeout(function() {
+        clearTimeout(timer);
+        var error = new Error('This is a test error.');
+        error.type = 'test';
+        p.reject(error);
+      }, 500);
+
+      t.getPromise().then(function() {
+        // The first stage should never complete.
+        fail();
+      }).catch(function(error) {
+        expect(error.type).toBe('test');
         done();
       });
     });

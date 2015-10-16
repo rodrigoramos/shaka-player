@@ -1,5 +1,6 @@
 /**
- * Copyright 2014 Google Inc.
+ * @license
+ * Copyright 2015 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,9 +13,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ */
+
+/**
+ * @fileoverview Externs for MediaKeys based on
+ * {@link http://goo.gl/blgtZZ EME draft 12 March 2015}
  *
- * @fileoverview MediaKey externs.
- * Based on {@link http://goo.gl/blgtZZ EME draft 12 March 2015}.
  * @externs
  */
 
@@ -28,7 +32,8 @@ var MediaKeySystemMediaCapability;
  *   audioCapabilities: (Array.<!MediaKeySystemMediaCapability>|undefined),
  *   videoCapabilities: (Array.<!MediaKeySystemMediaCapability>|undefined),
  *   distinctiveIdentifier: (string|undefined),
- *   persistentState: (string|undefined)
+ *   persistentState: (string|undefined),
+ *   sessionTypes: (Array.<string>|undefined)
  * }} */
 var MediaKeySystemConfiguration;
 
@@ -167,7 +172,7 @@ MediaKeySession.prototype.keyStatuses;
 
 /**
  * @param {string} initDataType
- * @param {?BufferSource} initData
+ * @param {!BufferSource} initData
  * @return {!Promise}
  */
 MediaKeySession.prototype.generateRequest = function(initDataType, initData) {};

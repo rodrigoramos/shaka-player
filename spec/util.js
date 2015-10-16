@@ -1,5 +1,6 @@
 /**
- * Copyright 2014 Google Inc.
+ * @license
+ * Copyright 2015 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @fileoverview Utility functions for unit tests.
  */
 
 goog.require('shaka.asserts');
@@ -173,15 +172,16 @@ var assertsToFailures = {
 
 
 /**
- * Called to interpret ContentProtection elements from an MPD.
- * @param {!shaka.dash.mpd.ContentProtection} contentProtection
- * @return {shaka.player.DrmSchemeInfo} or null if the element is not supported.
+ * Called to interpret ContentProtection elements from the MPD.
+ * @param {!string} schemeIdUri
+ * @param {!Node} contentProtection The ContentProtection XML element.
+ * @return {Array.<shaka.player.DrmInfo.Config>}
  */
-function interpretContentProtection(contentProtection) {
+function interpretContentProtection(schemeIdUri, contentProtection) {
   var Uint8ArrayUtils = shaka.util.Uint8ArrayUtils;
 
   // This is the only scheme used in integration tests at the moment.
-  if (contentProtection.schemeIdUri == 'com.youtube.clearkey') {
+  if (schemeIdUri == 'com.youtube.clearkey') {
     var license;
     for (var i = 0; i < contentProtection.children.length; ++i) {
       var child = contentProtection.children[i];
@@ -197,20 +197,22 @@ function interpretContentProtection(contentProtection) {
     var key = Uint8ArrayUtils.fromHex(license.getAttribute('key'));
     var keyObj = {
       kty: 'oct',
-      alg: 'A128KW',
       kid: Uint8ArrayUtils.toBase64(keyid, false),
       k: Uint8ArrayUtils.toBase64(key, false)
     };
     var jwkSet = {keys: [keyObj]};
     var license = JSON.stringify(jwkSet);
     var initData = {
-      initData: keyid,
-      initDataType: 'webm'
+      'initData': keyid,
+      'initDataType': 'webm'
     };
     var licenseServerUrl = 'data:application/json;base64,' +
         shaka.util.StringUtils.toBase64(license);
-    return new shaka.player.DrmSchemeInfo(
-        'org.w3.clearkey', licenseServerUrl, false, initData, null);
+    return [{
+      'keySystem': 'org.w3.clearkey',
+      'licenseServerUrl': licenseServerUrl,
+      'initData': initData
+    }];
   }
 
   return null;
@@ -287,7 +289,7 @@ function checkReferences(
     expect(reference.url.toString()).toBe(expectedUrl);
 
     expect(reference.startTime.toFixed(3)).toBe(expectedStartTime.toFixed(3));
-    expect(reference.startByte).toBe(expectedStartByte);
+    expect(reference.url.startByte).toBe(expectedStartByte);
 
     // The final end time and final end byte are dependent on the specific
     // content, so for simplicity just omit checking them.
@@ -296,7 +298,7 @@ function checkReferences(
       var expectedEndTime = expectedStartTimes[i + 1];
       var expectedEndByte = expectedStartBytes[i + 1] - 1;
       expect(reference.endTime.toFixed(3)).toBe(expectedEndTime.toFixed(3));
-      expect(reference.endByte).toBe(expectedEndByte);
+      expect(reference.url.endByte).toBe(expectedEndByte);
     }
   }
 }
@@ -314,11 +316,41 @@ function checkReferences(
 function checkReference(reference, url, startTime, endTime) {
   expect(reference).toBeTruthy();
   expect(reference.url).toBeTruthy();
-  expect(reference.url.toString()).toBe(url);
-  expect(reference.startByte).toBe(0);
-  expect(reference.endByte).toBeNull();
+  expect(reference.url.urls[0].toString()).toBe(url);
+  expect(reference.url.startByte).toBe(0);
+  expect(reference.url.endByte).toBeNull();
   expect(reference.startTime).toBe(startTime);
   expect(reference.endTime).toBe(endTime);
+}
+
+
+/**
+ * Creates a FailoverUri with the given info.
+ *
+ * @param {!string} url
+ * @param {number=} opt_start
+ * @param {?number=} opt_end
+ * @return {!shaka.util.FailoverUri}
+ */
+function createFailover(url, opt_start, opt_end) {
+  return new shaka.util.FailoverUri(
+      null, [new goog.Uri(url)], opt_start || 0, opt_end || null);
+}
+
+
+/**
+ * Creates a reference object using the given values.
+ *
+ * @param {number} startTime
+ * @param {number} endTime
+ * @param {string} url
+ * @param {number=} opt_startByte
+ * @param {?number=} opt_endByte
+ * @return {!shaka.media.SegmentReference}
+ */
+function createReference(startTime, endTime, url, opt_startByte, opt_endByte) {
+  var failover = createFailover(url, opt_startByte, opt_endByte);
+  return new shaka.media.SegmentReference(startTime, endTime, failover);
 }
 
 
@@ -337,6 +369,45 @@ function waitForMovement(video, eventManager) {
       promise.resolve();
     }
   });
+  return promise;
+}
+
+
+/**
+ * Waits for a callback function to succeed using a poll.
+ *
+ * @param {number} timeout in seconds
+ * @param {function(): boolean} callback
+ * @param {function(!Error)=} opt_timeoutCallback
+ * @return {!Promise}
+ */
+function waitFor(timeout, callback, opt_timeoutCallback) {
+  var promise = new shaka.util.PublicPromise();
+  var stack = (new Error('stacktrace')).stack.split('\n').slice(1).join('\n');
+  var pollId;
+
+  var timeoutId = window.setTimeout(function() {
+    window.clearInterval(pollId);
+
+    // Reject the promise, but replace the error's stack with the original
+    // call stack.  This timeout handler's stack is not helpful.
+    var error = new Error('Timeout waiting for callback');
+    error.stask = stack;
+
+    if (opt_timeoutCallback)
+      opt_timeoutCallback(error);
+
+    promise.reject(error);
+  }, timeout * 1000);
+
+  pollId = window.setInterval(function() {
+    if (callback()) {
+      window.clearInterval(pollId);
+      window.clearTimeout(timeoutId);
+
+      promise.resolve();
+    }
+  }, 100);
   return promise;
 }
 
@@ -387,41 +458,29 @@ function waitForTargetTime(video, eventManager, targetTime, timeout) {
  *     |targetTime| seconds of data.
  */
 function waitUntilBuffered(sourceBuffer, targetTime, timeout) {
-  var promise = new shaka.util.PublicPromise;
-  var stack = (new Error('stacktrace')).stack.split('\n').slice(1).join('\n');
+  return waitFor(timeout, function() {
+    var buffered = sourceBuffer.buffered;
 
-  var pollIntervalId;
-
-  var timeoutId = window.setTimeout(function() {
+    // If there is nothing buffered, then it may be 0.  Simply wait until
+    // it gets buffered.
+    expect(buffered.length).toBeLessThan(2);
+    if (buffered.length == 1) {
+      var secondsBuffered = buffered.end(0) - buffered.start(0);
+      return secondsBuffered > targetTime;
+    } else {
+      return false;
+    }
+  }, function(error) {
     var buffered = sourceBuffer.buffered;
     expect(buffered.length).toBe(1);
+
     var secondsBuffered = buffered.end(0) - buffered.start(0);
     // This expectation will fail, but will provide specific values to
     // Jasmine to help us debug timeout issues.
     expect(secondsBuffered).toBeGreaterThan(targetTime);
-    window.clearInterval(pollIntervalId);
-    // Reject the promise, but replace the error's stack with the original
-    // call stack.  This timeout handler's stack is not helpful.
-    var error = new Error('Timeout waiting for buffered ' + targetTime);
-    error.stack = stack;
-    promise.reject(error);
-  }, timeout * 1000);
 
-  pollIntervalId = window.setInterval(function() {
-    var buffered = sourceBuffer.buffered;
-    expect(buffered.length).toBe(1);
-    var secondsBuffered = buffered.end(0) - buffered.start(0);
-    if (secondsBuffered > targetTime) {
-      // This expectation will pass, but will keep Jasmine from complaining
-      // about tests which have no expectations.  In practice, some tests
-      // only need to demonstrate that they have reached a certain target.
-      expect(secondsBuffered).toBeGreaterThan(targetTime);
-      window.clearTimeout(timeoutId);
-      window.clearInterval(pollIntervalId);
-      promise.resolve();
-    }
-  }, 1000);
-  return promise;
+    error.message = 'Timeout waiting for buffered ' + targetTime;
+  });
 }
 
 

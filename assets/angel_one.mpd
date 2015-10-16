@@ -2,19 +2,19 @@
 <MPD xmlns="urn:mpeg:DASH:schema:MPD:2011" type="static" mediaPresentationDuration="PT59.994S" minBufferTime="PT1S" profiles="urn:webm:dash:profile:webm-on-demand:2012">
   <BaseURL>//shaka-player-demo.appspot.com/assets/angel_one/</BaseURL>
   <Period id="0" start="PT0S" duration="PT59.994S">
+    <AdaptationSet id="7" mimeType="audio/webm" codecs="vorbis" lang="de" audioSamplingRate="48000" subsegmentStartsWithSAP="1">
+      <Representation id="7" bandwidth="91060">
+        <BaseURL>a-de.webm</BaseURL>
+        <SegmentBase indexRange="682068-682263">
+          <Initialization range="0-4521"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
     <AdaptationSet id="6" mimeType="audio/webm" codecs="vorbis" lang="en" audioSamplingRate="48000" subsegmentStartsWithSAP="1">
       <Role value="main" />
       <Representation id="6" bandwidth="112375">
         <BaseURL>a-en.webm</BaseURL>
         <SegmentBase indexRange="815951-816145">
-          <Initialization range="0-4521"/>
-        </SegmentBase>
-      </Representation>
-    </AdaptationSet>
-    <AdaptationSet id="7" mimeType="audio/webm" codecs="vorbis" lang="de" audioSamplingRate="48000" subsegmentStartsWithSAP="1">
-      <Representation id="7" bandwidth="91060">
-        <BaseURL>a-de.webm</BaseURL>
-        <SegmentBase indexRange="682068-682263">
           <Initialization range="0-4521"/>
         </SegmentBase>
       </Representation>

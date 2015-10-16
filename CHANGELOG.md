@@ -1,3 +1,183 @@
+## 1.5.1 (2015-10-07)
+
+A roll-up of recent bugfixes.
+
+Bugfixes:
+  - Fixed a major memory leak introduced in 1.5.0.
+    - https://github.com/google/shaka-player/issues/184
+  - Deleting encrypted offline content now deletes persistent sessions.
+    - https://github.com/google/shaka-player/issues/171
+  - Static content using SegmentTemplate is now truncated at the Period's
+    duration.
+    - https://github.com/google/shaka-player/issues/187
+    - https://github.com/google/shaka-player/issues/173
+  - Key status error reporting is now more consistent and provides more
+    information.
+  - Reduced flakiness in some tests.
+  - Requests used for clock sync no longer allow caching.
+    - https://github.com/google/shaka-player/issues/191
+
+
+## 1.5.0 (2015-09-17)
+
+Features:
+  - Added method to set playback start time.
+    - https://github.com/google/shaka-player/issues/122
+    - https://github.com/google/shaka-player/pull/123
+  - Added a text-styling API.
+    - https://github.com/google/shaka-player/issues/115
+  - Added support for AdaptationSet groups.
+    - https://github.com/google/shaka-player/issues/67
+  - Added a new configuration API.
+    - https://github.com/google/shaka-player/issues/93
+  - License preprocessing can now modify HTTP method and server URL.
+    - https://github.com/google/shaka-player/issues/134
+    - https://github.com/google/shaka-player/issues/135
+  - Added an API to load captions not specified in the manifest.
+    - https://github.com/google/shaka-player/issues/133
+  - Added support for live streams using SegmentList.
+    - https://github.com/google/shaka-player/issues/88
+  - Added support for multiple BaseURL elements for failover.
+    - https://github.com/google/shaka-player/issues/68
+  - Gave IAbrManager implementation the ability to clear the buffer when
+    switching streams.
+    - https://github.com/google/shaka-player/pull/144
+  - Added setNetworkCallback API to DashVideoSource to modify network requests.
+    - https://github.com/google/shaka-player/issues/148
+  - Improved error reporting for unplayable content.
+  - Added support for multiple DRM schemes per ContentProtection and simplified
+    DRM scheme configuration.
+    - https://github.com/google/shaka-player/issues/71
+  - Improved documentation for license pre- and post-processing.
+    - https://github.com/google/shaka-player/issues/137
+
+Bugfixes:
+  - Restricting all video tracks now fires an error event.
+    - https://github.com/google/shaka-player/issues/179
+    - https://github.com/google/shaka-player/issues/170
+  - Changing text tracks now fires an adaptation event.
+    - https://github.com/google/shaka-player/issues/147
+  - Fixed bad interactions between pausing and negative playback rates.
+    - https://github.com/google/shaka-player/issues/130
+  - Fixed support for negative r values in SegmentTimeline.
+    - https://github.com/google/shaka-player/issues/162
+  - Fixed bugs that could cause infinite buffering for certain configurations.
+    - https://github.com/google/shaka-player/issues/166
+  - Fixed exceptions fired during rapid Player destroy().
+    - https://github.com/google/shaka-player/issues/151
+  - Fixed linting with conflicting globally-installed copy of linter library.
+    - https://github.com/google/shaka-player/issues/153
+  - Fixed support for SegmentTimelines with presentationTimeOffset.
+    - https://github.com/google/shaka-player/issues/143
+  - Fixed support for apps/content which specify multiple DRM scheme configs.
+    - https://github.com/google/shaka-player/issues/177
+
+Broken Compatibility:
+  - Removed Player methods deprecated since v1.3.0.
+    - getCurrentResolution
+    - getCurrentTime
+    - getDuration
+    - getMuted
+    - getVolume
+    - play
+    - pause
+    - requestFullscreen
+    - seek
+    - setMuted
+    - setVolume
+    - https://github.com/google/shaka-player/issues/118
+
+Deprecated:
+  - The following methods on Player are deprecated in favor of
+    configure()/getConfiguration() and will be removed in v1.6.0:
+    - enableAdaptation
+    - getAdaptationEnabled
+    - setStreamBufferSize
+    - getStreamBufferSize
+    - setLicenseRequestTimeout
+    - setMpdRequestTimeout
+    - setRangeRequestTimeout
+    - setPreferredLanguage
+    - setRestrictions
+    - getRestrictions
+    - https://github.com/google/shaka-player/issues/93
+  - A new two-argument ContentProtectionCallback has been added to
+    DashVideoSource, and the old style is deprecated and will be removed
+    in v1.6.0.
+    - https://github.com/google/shaka-player/issues/71
+
+
+## 1.4.2 (2015-09-04)
+
+A roll-up of recent bugfixes.
+
+Bugfixes:
+  - Fix storage of duplicate session IDs for encrypted offline content.
+  - Specify EME sessionTypes, required in newer EME draft.
+    - https://github.com/google/shaka-player/issues/128
+  - Fix regression in rewind support, once more working outside buffered range.
+    - https://github.com/google/shaka-player/issues/165
+  - Support renamed output protection errors from newer EME draft.
+  - Fix seeking in custom controls on Android.
+    - https://github.com/google/shaka-player/issues/164
+  - Fix missing final chunk when storing certain videos for offline playback.
+    - https://github.com/google/shaka-player/issues/157
+  - Prevent crashing of module loaders which use 'define' but are not full AMD
+    loaders.
+    - https://github.com/google/shaka-player/issues/163
+
+Test app features:
+  - Added 'offline' URL param.
+
+
+## 1.4.1 (2015-08-18)
+
+A roll-up of recent bugfixes and small improvements.
+
+Bugfixes:
+  - An exception is no longer thrown from StreamVideoSource in uncompiled mode
+    when the stream limits cannot be computed.
+  - Fixed support for multiple encrypted audio tracks.
+    - https://github.com/google/shaka-player/issues/112
+  - Fixed support for manifests that use SegmentList with a single URL.
+  - Fixed support for audio and video robustness settings in compiled mode.
+  - The MPD 'main' property is now defined in the correct class.
+  - The same initialization segment is no longer inserted multiple times into
+    the SourceBuffer.
+  - Removed a race in Stream that could stop AdaptationEvents from firing.
+  - Stopped the compiler from renaming PersistentState and DistinctiveIdentifier
+    enum values.
+  - Removed a race in Player.getStats() that could cause NaN stats.
+  - Fixed support to recover from failed segment requests.
+    - https://github.com/google/shaka-player/issues/131
+  - Made rewind, pause, play, and fast-forward consistent with normal video
+    element behavior, the UI, and Player.setPlaybackRate().
+    - https://github.com/google/shaka-player/issues/130
+    - https://github.com/google/shaka-player/issues/138
+  - Improved seek handling during stream startup.
+    - https://github.com/google/shaka-player/issues/136
+  - Unnecessary seeking events during stream startup are no longer fired.
+    - https://github.com/google/shaka-player/issues/132
+  - Segment fetches are no longer retried if the Stream has been destroyed.
+    - https://github.com/google/shaka-player/issues/156
+  - Fixed support for offline in compiled mode.
+
+Features:
+  - The version indicator on the demo page now displays the NPM version (if
+    available) when the git version is unavailable.
+  - Added support to clear the the audio buffer when switching tracks.
+    - https://github.com/google/shaka-player/issues/119
+  - Added the ability to detect and recover from multiple buffered ranges.
+    - https://github.com/google/shaka-player/issues/121
+  - Improved error messages when persistent licenses are not supported.
+    - https://github.com/google/shaka-player/issues/85
+
+Testing:
+  - Reduced test flakiness overall.
+  - Certain (unavoidable) decode errors are now suppressed on Chrome Linux.
+  - Added waitUntilBuffered() function to help reduce test flakiness.
+
+
 ## 1.4.0 (2015-07-06)
 
 Code health release.  Major refactoring of streaming logic.

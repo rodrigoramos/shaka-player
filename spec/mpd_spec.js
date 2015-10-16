@@ -1,5 +1,6 @@
 /**
- * Copyright 2014 Google Inc.
+ * @license
+ * Copyright 2015 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @fileoverview mpd_parser.js unit tests.
  */
 
 goog.require('shaka.dash.mpd');
@@ -128,7 +127,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -186,7 +185,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -250,7 +249,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -274,7 +273,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -320,7 +319,7 @@ describe('mpd', function() {
    * @param {string} mimeType
    */
   var checkRepresentationMimeType = function(source, mimeType) {
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -346,7 +345,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -370,7 +369,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -416,7 +415,7 @@ describe('mpd', function() {
    * @param {string} codecs
    */
   var checkCodecs = function(source, codecs) {
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd).toBeTruthy();
     expect(mpd.periods.length).toBe(1);
 
@@ -442,7 +441,7 @@ describe('mpd', function() {
       '    <AdaptationSet id="2" group="2" />',
       '  </Period>',
       '</MPD>'].join('\n');
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd.periods[0].adaptationSets[0].group).toBe(0);
     expect(mpd.periods[0].adaptationSets[1].group).toBe(1);
     expect(mpd.periods[0].adaptationSets[2].group).toBe(2);
@@ -460,7 +459,7 @@ describe('mpd', function() {
       '    <AdaptationSet id="5" group="3" />',
       '  </Period>',
       '</MPD>'].join('\n');
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     var groups = mpd.periods[0].adaptationSets.map(
         function(set) { return set.group; });
 
@@ -470,22 +469,6 @@ describe('mpd', function() {
         expect(groups[i] != groups[j]).toBe(true);
       }
     }
-  });
-
-  it('parses namespaced elements', function() {
-    var source = [
-      '<MPD>',
-      '  <Period id="1" duration="PT0H3M1.63S" start="PT0S">',
-      '    <AdaptationSet id="1" lang="fr" contentType="audio">',
-      '      <ContentProtection schemeIdUri="com.bogus">',
-      '        <prefix:TagName keyid="0" key="1"/>',
-      '      </ContentProtection>',
-      '    </AdaptationSet>',
-      '  </Period>',
-      '</MPD>'].join('\n');
-
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
-    expect(mpd).toBeTruthy();
   });
 
   it('defaults startNumber to 1 when missing', function() {
@@ -498,7 +481,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     var period = mpd.periods[0];
     var adaptationSet = period.adaptationSets[0];
     var segmentTemplate = adaptationSet.segmentTemplate;
@@ -515,7 +498,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     var period = mpd.periods[0];
     var adaptationSet = period.adaptationSets[0];
     var segmentTemplate = adaptationSet.segmentTemplate;
@@ -532,7 +515,7 @@ describe('mpd', function() {
       '  </Period>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     var period = mpd.periods[0];
     var adaptationSet = period.adaptationSets[0];
     var segmentTemplate = adaptationSet.segmentTemplate;
@@ -544,7 +527,7 @@ describe('mpd', function() {
       '<MPD minBufferTime="PT0S">',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, '');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
     expect(mpd.minBufferTime).toBe(0);
   });
 
@@ -554,7 +537,8 @@ describe('mpd', function() {
       '  <Location>http://example.com/updated_mpd</Location>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, 'http://example.com/mpd');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover(
+        'http://example.com/mpd').urls);
     expect(mpd.updateLocation.toString()).toBe(
         'http://example.com/updated_mpd');
   });
@@ -566,9 +550,63 @@ describe('mpd', function() {
       '  <Location>updated_mpd</Location>',
       '</MPD>'].join('\n');
 
-    var mpd = shaka.dash.mpd.parseMpd(source, 'http://example.com/mpd');
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover(
+        'http://example.com/mpd').urls);
     expect(mpd.updateLocation.toString()).toBe(
         'http://example.com/updated_mpd');
+  });
+
+  it('handles adding external captions', function() {
+    var source = [
+      '<MPD>',
+      '  <Period id="1" duration="PT0H1M0.00S">',
+      '  </Period>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
+    mpd.addExternalCaptions('http://example.com/');
+
+    var period = mpd.periods[0];
+    expect(period.adaptationSets.length).toBe(1);
+
+    var adaptationSet = period.adaptationSets[0];
+    expect(adaptationSet.contentType).toBe('text');
+    expect(adaptationSet.lang).toBe('en');
+    expect(adaptationSet.representations.length).toBe(1);
+
+    var representation = adaptationSet.representations[0];
+    expect(representation.baseUrl.toString()).toBe('http://example.com/');
+  });
+
+  it('handles adding multiple external captions', function() {
+    var source = [
+      '<MPD>',
+      '  <Period id="1" duration="PT0H1M0.00S">',
+      '  </Period>',
+      '</MPD>'].join('\n');
+
+    var mpd = shaka.dash.mpd.parseMpd(source, createFailover('').urls);
+    mpd.addExternalCaptions('http://example.com/');
+    mpd.addExternalCaptions('http://example.com/', 'es');
+
+    var period = mpd.periods[0];
+    expect(period.adaptationSets.length).toBe(2);
+
+    var adaptationSet = period.adaptationSets[0];
+    expect(adaptationSet.contentType).toBe('text');
+    expect(adaptationSet.lang).toBe('en');
+    expect(adaptationSet.representations.length).toBe(1);
+
+    var representation = adaptationSet.representations[0];
+    expect(representation.baseUrl.toString()).toBe('http://example.com/');
+
+    var adaptationSet2 = period.adaptationSets[1];
+    expect(adaptationSet2.contentType).toBe('text');
+    expect(adaptationSet2.lang).toBe('es');
+    expect(adaptationSet2.representations.length).toBe(1);
+
+    var representation2 = adaptationSet2.representations[0];
+    expect(representation.baseUrl.toString()).toBe('http://example.com/');
   });
 });
 

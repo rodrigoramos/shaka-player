@@ -1,5 +1,6 @@
 /**
- * Copyright 2014 Google Inc.
+ * @license
+ * Copyright 2015 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,12 +13,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @fileoverview Implements the application layer of the test application.
  */
 
 
-/** @class */
+/**
+ * The application layer of the test application.
+ * @class
+ */
 var app = function() {};
 
 
@@ -188,6 +190,11 @@ app.init = function() {
           }
           app.addOfflineStream_(value, id);
         }
+
+        if ('offline' in params) {
+          app.loadStream();
+          app.onStreamTypeChange();
+        }
       }
   ).catch(
       function(e) {
@@ -214,6 +221,9 @@ app.init = function() {
   } else if ('http' in params) {
     document.getElementById('streamTypeList').value = 'http';
     app.loadStream();
+  } else if ('offline' in params) {
+    document.getElementById('streamTypeList').value = 'offline';
+    // loadStream() deferred until group IDs loaded
   }
   app.onStreamTypeChange();
 
@@ -634,6 +644,11 @@ app.removeOfflineStream_ = function(groupId) {
  * Loads whatever stream type is selected.
  */
 app.loadStream = function() {
+  // Set the cross-origin flag to anonymous to allow loading subtitle tracks
+  // cross-origin, as in the Angel One clip.
+  // TODO: Remove this when subtitles no longer use the track element.
+  app.video_.crossOrigin = 'anonymous';
+
   var type = document.getElementById('streamTypeList').value;
   if (type == 'http') {
     app.loadHttpStream();
@@ -658,17 +673,10 @@ app.loadHttpStream = function() {
   var keySystem = document.getElementById('keySystemList').value;
   var licenseServerUrl = document.getElementById('licenseServerUrlInput').value;
   var subtitlesUrl = document.getElementById('subtitlesUrlInput').value;
-  var drmSchemeInfo = null;
-  if (keySystem) {
-    drmSchemeInfo = new shaka.player.DrmSchemeInfo(
-        keySystem,
-        licenseServerUrl,
-        false /* withCredentials */,
-        null /* initData */);
-  }
-
-  app.load_(new shaka.player.HttpVideoSource(mediaUrl, subtitlesUrl,
-                                             drmSchemeInfo));
+  var config = keySystem ?
+               {'keySystem': keySystem, 'licenseServerUrl': licenseServerUrl} :
+               {};
+  app.load_(new shaka.player.HttpVideoSource(mediaUrl, subtitlesUrl, config));
 };
 
 
@@ -935,6 +943,7 @@ app.initPlayer_ = function() {
       playerControls.onBuffering.bind(null, false));
   app.player_.addEventListener('seekrangechanged',
       playerControls.onSeekRangeChanged);
+  app.player_.addEventListener('trackschanged', app.displayMetadata_);
 
   app.estimator_ = new shaka.util.EWMABandwidthEstimator();
   playerControls.setPlayer(app.player_);
@@ -956,33 +965,22 @@ app.onPlayerError_ = function(event) {
 
 /**
  * Called to interpret ContentProtection elements from the MPD.
- * @param {!shaka.dash.mpd.ContentProtection} contentProtection The MPD element.
- * @return {shaka.player.DrmSchemeInfo} or null if the element is not
- *     understood by this application.
+ * @param {!string} schemeIdUri
+ * @param {!Node} contentProtection The ContentProtection XML element.
+ * @return {Array.<shaka.player.DrmInfo.Config>}
  * @private
  */
-app.interpretContentProtection_ = function(contentProtection) {
+app.interpretContentProtection_ = function(schemeIdUri, contentProtection) {
   var Uint8ArrayUtils = shaka.util.Uint8ArrayUtils;
-
-  var initDataOverride = null;
-  if (contentProtection.pssh && contentProtection.pssh.psshBox) {
-    // Override the init data with the PSSH from the manifest.
-    initDataOverride = {
-      initData: contentProtection.pssh.psshBox,
-      initDataType: 'cenc'
-    };
-    console.info('Found overridden PSSH with system IDs:',
-                 contentProtection.pssh.parsedPssh.systemIds);
-  }
 
   var wvLicenseServerUrlOverride =
       document.getElementById('wvLicenseServerUrlInput').value || null;
 
-  if (contentProtection.schemeIdUri == 'com.youtube.clearkey') {
+  if (schemeIdUri == 'com.youtube.clearkey') {
     // This is the scheme used by YouTube's MediaSource demo.
     var license;
-    for (var i = 0; i < contentProtection.children.length; ++i) {
-      var child = contentProtection.children[i];
+    for (var i = 0; i < contentProtection.childNodes.length; ++i) {
+      var child = contentProtection.childNodes[i];
       if (child.nodeName == 'ytdrm:License') {
         license = child;
         break;
@@ -995,30 +993,29 @@ app.interpretContentProtection_ = function(contentProtection) {
     var key = Uint8ArrayUtils.fromHex(license.getAttribute('key'));
     var keyObj = {
       kty: 'oct',
-      alg: 'A128KW',
       kid: Uint8ArrayUtils.toBase64(keyid, false),
       k: Uint8ArrayUtils.toBase64(key, false)
     };
     var jwkSet = {keys: [keyObj]};
-    var license = JSON.stringify(jwkSet);
+    license = JSON.stringify(jwkSet);
     var initData = {
-      initData: keyid,
-      initDataType: 'webm'
+      'initData': keyid,
+      'initDataType': 'webm'
     };
     var licenseServerUrl = 'data:application/json;base64,' +
         window.btoa(license);
-    return new shaka.player.DrmSchemeInfo(
-        'org.w3.clearkey',
-        licenseServerUrl,
-        false /* withCredentials */,
-        initData);
+    return [{
+      'keySystem': 'org.w3.clearkey',
+      'licenseServerUrl': licenseServerUrl,
+      'initData': initData
+    }];
   }
 
-  if (contentProtection.schemeIdUri == 'http://youtube.com/drm/2012/10/10') {
+  if (schemeIdUri == 'http://youtube.com/drm/2012/10/10') {
     // This is another scheme used by YouTube.
     var licenseServerUrl = null;
-    for (var i = 0; i < contentProtection.children.length; ++i) {
-      var child = contentProtection.children[i];
+    for (var i = 0; i < contentProtection.childNodes.length; ++i) {
+      var child = contentProtection.childNodes[i];
       if (child.nodeName == 'yt:SystemURL' &&
           child.getAttribute('type') == 'widevine') {
         licenseServerUrl = wvLicenseServerUrlOverride || child.textContent;
@@ -1026,37 +1023,32 @@ app.interpretContentProtection_ = function(contentProtection) {
       }
     }
     if (licenseServerUrl) {
-      return new shaka.player.DrmSchemeInfo(
-          'com.widevine.alpha',
-          licenseServerUrl,
-          false /* withCredentials */,
-          initDataOverride,
-          app.postProcessYouTubeLicenseResponse_);
+      return [{
+        'keySystem': 'com.widevine.alpha',
+        'licenseServerUrl': licenseServerUrl,
+        'licensePostProcessor': app.postProcessYouTubeLicenseResponse_
+      }];
     }
   }
 
-  if (contentProtection.schemeIdUri.toLowerCase() ==
+  if (schemeIdUri.toLowerCase() ==
       'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed') {
     // This is the UUID which represents Widevine in the edash-packager.
     var licenseServerUrl =
         wvLicenseServerUrlOverride || '//widevine-proxy.appspot.com/proxy';
-    return new shaka.player.DrmSchemeInfo(
-        'com.widevine.alpha',
-        licenseServerUrl,
-        false /* withCredentials */,
-        initDataOverride);
+    return [{
+      'keySystem': 'com.widevine.alpha',
+      'licenseServerUrl': licenseServerUrl
+    }];
   }
 
-  if (contentProtection.schemeIdUri.toLowerCase() ==
+  if (schemeIdUri.toLowerCase() ==
       'urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95') {
     // This is the UUID which represents Microsoft PlayReady
-    return new shaka.player.DrmSchemeInfo(
-        'com.microsoft.playready',
-        wvLicenseServerUrlOverride,
-        false /* withCredentials */,
-        initDataOverride,
-        null,
-        function(info) {
+    return [{
+        'keySystem': 'com.microsoft.playready',
+        'licenseServerUrl': wvLicenseServerUrlOverride,
+        'licensePreProcessor': function(info) {
           info.headers['Content-Type'] = 'text/xml; charset=utf-8';
           info.headers['SOAPAction'] =
               'http://schemas.microsoft.com/DRM/2007/03/protocols/AcquireLicense';
@@ -1074,15 +1066,16 @@ app.interpretContentProtection_ = function(contentProtection) {
 
           var challenge = challengeNode.childNodes[0].nodeValue;
           info.body = shaka.util.StringUtils.fromBase64(challenge);
-        });
+        })
+    }];
   }
 
-  if (contentProtection.schemeIdUri == 'urn:mpeg:dash:mp4protection:2011') {
+  if (schemeIdUri == 'urn:mpeg:dash:mp4protection:2011') {
     // Ignore without a warning.
     return null;
   }
 
-  console.warn('Unrecognized scheme: ' + contentProtection.schemeIdUri);
+  console.warn('Unrecognized scheme:', schemeIdUri);
   return null;
 };
 
