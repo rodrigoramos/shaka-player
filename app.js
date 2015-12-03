@@ -1046,27 +1046,27 @@ app.interpretContentProtection_ = function(schemeIdUri, contentProtection) {
       'urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95') {
     // This is the UUID which represents Microsoft PlayReady
     return [{
-        'keySystem': 'com.microsoft.playready',
-        'licenseServerUrl': wvLicenseServerUrlOverride,
-        'licensePreProcessor': function(info) {
-          info.headers['Content-Type'] = 'text/xml; charset=utf-8';
-          info.headers['SOAPAction'] =
-              'http://schemas.microsoft.com/DRM/2007/03/protocols/AcquireLicense';
+      'keySystem': 'com.microsoft.playready',
+      'licenseServerUrl': wvLicenseServerUrlOverride,
+      'licensePreProcessor': function(info) {
+        info.headers['Content-Type'] = 'text/xml; charset=utf-8';
+        info.headers['SOAPAction'] =
+            'http://schemas.microsoft.com/DRM/2007/03/protocols/AcquireLicense';
 
-          var parser = new DOMParser();
-          var bytes = new Uint16Array(/** @type {ArrayBuffer} */ (info.body));
-          var msg = String.fromCharCode.apply(null, bytes);
-          var xmlDoc = parser.parseFromString(msg, 'application/xml');
-          var challengeNode = xmlDoc.getElementsByTagName('Challenge')[0];
+        var parser = new DOMParser();
+        var bytes = new Uint16Array(/** @type {ArrayBuffer} */ (info.body));
+        var msg = String.fromCharCode.apply(null, bytes);
+        var xmlDoc = parser.parseFromString(msg, 'application/xml');
+        var challengeNode = xmlDoc.getElementsByTagName('Challenge')[0];
 
-          if (!challengeNode) {
-            throw new Error(
-                'PlayReady: It was not possible to find the challenge node.');
-          }
+        if (!challengeNode) {
+          throw new Error(
+              'PlayReady: It was not possible to find the challenge node.');
+        }
 
-          var challenge = challengeNode.childNodes[0].nodeValue;
-          info.body = shaka.util.StringUtils.fromBase64(challenge);
-        })
+        var challenge = challengeNode.childNodes[0].nodeValue;
+        info.body = shaka.util.StringUtils.fromBase64(challenge);
+      }
     }];
   }
 
